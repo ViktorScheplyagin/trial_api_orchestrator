@@ -16,10 +16,10 @@ pip install -e .
 ## Run the app
 
 ```bash
-uvicorn app.main:app --reload
+python -m app
 ```
 
-Then open http://localhost:8000/ to add provider API keys and inspect availability badges.
+The dev server now listens at http://localhost:3001/ by default; override the host or port with `UVICORN_HOST` / `UVICORN_PORT` if needed.
 
 ## Extensibility (Adding a Provider)
 

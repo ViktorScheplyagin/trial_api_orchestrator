@@ -265,7 +265,7 @@ Consult ./supported_providers.md for capability/limit nuances.
 Example request (replace model and content appropriately):
 
 ```bash
-curl -sS -X POST http://localhost:8000/v1/chat/completions \
+curl -sS -X POST http://localhost:3001/v1/chat/completions \
   -H 'Content-Type: application/json' \
   -d '{
         "model": "openrouter/auto",
@@ -275,4 +275,3 @@ curl -sS -X POST http://localhost:8000/v1/chat/completions \
 ```
 
 Expected: HTTP 200 with `object`, `created`, `model`, `choices[0]`, and optional `usage`. If misconfigured: HTTP 401 (missing credentials) or 429 (rate/availability).
-
