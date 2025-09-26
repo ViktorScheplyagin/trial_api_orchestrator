@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Trial API Orchestrator</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <main class="container">
+        <h1>Providers</h1>
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Availability</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for state in states %}
+                <tr>
+                    <td>
+                        <div class="provider-name">{{ state.provider.name }}</div>
+                        <div class="provider-id">{{ state.provider.id }}</div>
+                    </td>
+                    <td>
+                        {% if state.is_available %}
+                        <span class="badge badge-green">Available</span>
+                        {% else %}
+                        <span class="badge badge-red">Unavailable</span>
+                        {% if state.credential and state.credential.last_error %}
+                            <div class="detail">Last error: {{ state.credential.last_error }}</div>
+                        {% endif %}
+                        {% endif %}
+                    </td>
+                    <td>
+                        <form method="post" action="/admin/providers/{{ state.provider.id }}/credentials" class="inline-form">
+                            <input type="password" name="api_key" placeholder="API key" value="" required>
+                            <button type="submit">Save</button>
+                        </form>
+                        {% if state.credential %}
+                        <form method="post" action="/admin/providers/{{ state.provider.id }}/credentials/delete" class="inline-form">
+                            <button type="submit" class="secondary">Remove</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </main>
+</body>
+</html>

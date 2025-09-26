@@ -47,3 +47,6 @@ Document the autonomous agents participating in the trial API orchestrator. Upda
 ## Notes
 - Keep this document in sync with any configuration files that instantiate agents.
 - Include links to related documentation or dashboards when available.
+
+## Architecture & File Structure
+- For a complete overview of the project architecture, module responsibilities, request lifecycles, and file layout, see [ai_docs/architecture.md](ai_docs/architecture.md).
