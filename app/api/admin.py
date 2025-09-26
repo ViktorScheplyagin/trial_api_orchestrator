@@ -5,8 +5,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import cast
 
-from fastapi import APIRouter, Body, Form, HTTPException
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Body, Form, HTTPException, Response
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.core.config import load_config
 from app.storage.credentials import delete_api_key, list_credentials, upsert_api_key
@@ -54,7 +54,7 @@ def set_provider_key(
     provider_id: str,
     api_key: str | None = Form(default=None),
     api_key_body: dict | None = Body(default=None),
-) -> dict | RedirectResponse:
+) -> Response:
     api_key_value = api_key
     if api_key_value is None and api_key_body:
         api_key_value = api_key_body.get("api_key")
@@ -63,7 +63,7 @@ def set_provider_key(
     upsert_api_key(provider_id, api_key_value)
     if api_key is not None:
         return RedirectResponse(url="/", status_code=303)
-    return {"status": "ok"}
+    return JSONResponse({"status": "ok"})
 
 
 @router.delete("/providers/{provider_id}/credentials")
@@ -75,7 +75,7 @@ def delete_provider_key(provider_id: str) -> dict:
 
 
 @router.post("/providers/{provider_id}/credentials/delete")
-def delete_provider_key_post(provider_id: str) -> dict | RedirectResponse:
+def delete_provider_key_post(provider_id: str) -> RedirectResponse:
     removed = delete_api_key(provider_id)
     if not removed:
         raise HTTPException(status_code=404, detail="Provider credential not found")
