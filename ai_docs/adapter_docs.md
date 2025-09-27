@@ -213,6 +213,13 @@ Where a provider’s schema diverges, adapt minimally to preserve OpenAI parity 
 - HTTP errors (including provider-level rate limits surfaced as 429) should be captured via `credentials.record_error` to ensure the registry deprioritizes OpenRouter while it recovers.
 
 
+### Hugging Face-specific Notes
+
+- Hugging Face’s chat endpoint is namespaced by model id in the URL (`/models/{model_id}/chat/completions`). The adapter should format the path using `request.model` and avoid double slashes by trimming `base_url`.
+- Some responses return `generated_text` instead of `choices`; synthesize a default `choice` with assistant role content so downstream consumers receive a consistent schema.
+- Hugging Face usage metadata varies by model; pass through provided `usage` blocks untouched and consider tracking derived totals when they are missing in future iterations.
+
+
 ## Credentials & Security
 
 - Store and fetch keys via `app/storage/credentials.py`.
