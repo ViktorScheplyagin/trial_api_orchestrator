@@ -23,7 +23,7 @@ Document the autonomous agents participating in the trial API orchestrator. Upda
   - **Inputs:** OpenAI-like `POST /v1/chat/completions` request
   - **Outputs:** OpenAI-like chat completion response (non-streaming in v1)
   - **Owner / Maintainer:** Orchestrator Team
-  - **Source Location:** `app/router/selector.py` (planned)
+  - **Source Location:** `app/router/selector.py`
 
 - **Name:** Credentials Manager
   - **Description:** Stores and retrieves provider API keys from SQLite and supplies credentials to adapters.
@@ -33,7 +33,7 @@ Document the autonomous agents participating in the trial API orchestrator. Upda
   - **Inputs:** Admin UI actions (HTMX) and provider identifiers
   - **Outputs:** Provider credential records for adapters
   - **Owner / Maintainer:** Orchestrator Team
-  - **Source Location:** `app/storage/credentials.py` (planned)
+  - **Source Location:** `app/storage/credentials.py`
 
 - **Name:** Cohere Adapter
   - **Description:** Calls Cohere's `/v2/chat` endpoint and normalizes responses into the orchestrator's OpenAI-style schema.
@@ -74,6 +74,16 @@ Document the autonomous agents participating in the trial API orchestrator. Upda
   - **Outputs:** Chat completion responses compatible with `ChatCompletionResponse`
   - **Owner / Maintainer:** Orchestrator Team
   - **Source Location:** `app/providers/gemini.py`
+
+- **Name:** Telemetry Recorder
+  - **Description:** Captures provider failovers and errors, persisting high-value events for operators.
+  - **Primary Capabilities:**
+    - Structured logging with request correlation
+    - SQLite-backed event persistence for admin dashboards
+  - **Inputs:** Event payloads from router, middleware, and exception handlers
+  - **Outputs:** Recent event records for UI consumption and log stream entries
+  - **Owner / Maintainer:** Orchestrator Team
+  - **Source Location:** `app/telemetry/events.py`
 
 ## Decisions Snapshot (v1)
 - **API surface:** Only `POST /v1/chat/completions` (no streaming). `GET /v1/models` deferred.

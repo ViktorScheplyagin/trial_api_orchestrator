@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Dict, Iterable, List, Optional, Type
 
@@ -15,6 +16,9 @@ from app.providers.huggingface import HuggingFaceProvider
 from app.providers.openrouter import OpenRouterProvider
 from app.storage import credentials
 from app.storage.models import ProviderCredential
+from app.telemetry.events import record_event
+
+logger = logging.getLogger("orchestrator.router")
 
 
 @dataclass
@@ -88,17 +92,80 @@ async def select_provider(
     else:
         providers_to_try = available_providers
 
-    last_error: Dict[str, ProviderUnavailableError] = {}
+    last_failed_provider_id: str | None = None
+    last_failure_message: str | None = None
+    final_failure: ProviderUnavailableError | None = None
 
-    for provider_model in providers_to_try:
+    for attempt_index, provider_model in enumerate(providers_to_try, start=1):
+        if last_failed_provider_id:
+            logger.info(
+                "Provider switched",
+                extra={
+                    "event": "provider_switched",
+                    "provider_from": last_failed_provider_id,
+                    "provider_to": provider_model.id,
+                    "model": request.model,
+                    "reason": last_failure_message,
+                    "attempt": attempt_index,
+                },
+            )
+            record_event(
+                "provider_switched",
+                "INFO",
+                provider_from=last_failed_provider_id,
+                provider_to=provider_model.id,
+                model=request.model,
+                message=last_failure_message,
+                meta={"attempt": attempt_index},
+            )
+            last_failed_provider_id = None
+            last_failure_message = None
+
         adapter = registry.get_adapter(provider_model)
         try:
-            return await adapter.chat_completions(request)
+            response = await adapter.chat_completions(request)
+            final_failure = None
+            return response
         except ProviderUnavailableError as exc:
-            last_error[provider_model.id] = exc
+            logger.warning(
+                "Provider failed",
+                extra={
+                    "event": "provider_fail",
+                    "provider_from": provider_model.id,
+                    "model": request.model,
+                    "error_message": exc.message,
+                    "attempt": attempt_index,
+                },
+            )
+            record_event(
+                "provider_fail",
+                "WARNING",
+                provider_from=provider_model.id,
+                model=request.model,
+                message=exc.message,
+                meta={"attempt": attempt_index},
+            )
+            last_failed_provider_id = provider_model.id
+            last_failure_message = exc.message
+            final_failure = exc
             continue
 
-    if last_error:
-        # Re-raise the last encountered error for context.
-        raise last_error[list(last_error.keys())[-1]]
+    if final_failure:
+        logger.error(
+            "All providers exhausted",
+            extra={
+                "event": "request_error",
+                "provider_from": final_failure.provider_id,
+                "model": request.model,
+                "error_message": final_failure.message,
+            },
+        )
+        record_event(
+            "request_error",
+            "ERROR",
+            provider_from=final_failure.provider_id,
+            model=request.model,
+            message=final_failure.message,
+        )
+        raise final_failure
     raise ProviderUnavailableError("unknown", message="No providers configured")

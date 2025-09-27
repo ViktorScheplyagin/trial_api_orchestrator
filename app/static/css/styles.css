@@ -18,6 +18,11 @@ h1 {
     margin-top: 0;
 }
 
+h2 {
+    margin-top: 32px;
+    margin-bottom: 16px;
+}
+
 table {
     width: 100%;
     border-collapse: collapse;
@@ -87,4 +92,26 @@ button.secondary {
     margin-top: 6px;
     font-size: 0.85rem;
     color: #ef4444;
+}
+
+.events-table {
+    margin-top: 8px;
+}
+
+.events-table .timestamp {
+    white-space: nowrap;
+}
+
+.events-table .meta {
+    font-size: 0.8rem;
+    color: #6b7280;
+}
+
+.events-table .message {
+    font-weight: 500;
+}
+
+.empty {
+    color: #6b7280;
+    font-style: italic;
 }

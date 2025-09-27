@@ -24,6 +24,23 @@ The dev server now listens at http://localhost:3001/ by default; override the ho
 The OpenAPI/Swagger documentation is available at http://localhost:3001/api/docs.
 
 
+## Telemetry & Logging
+
+- Logs are emitted in JSONL format to `logs/app.jsonl` (rotating at ~10MB × 5 files) and in a concise plain format to stdout.
+- Each request receives an `x-request-id`; it is attached to log records and reflected in responses.
+- High-signal events (`provider_fail`, `provider_switched`, `request_error`) are also written to the SQLite database and surfaced in the dashboard under **Recent Events**.
+- Toggle verbosity and persistence via environment variables:
+  - `LOG_LEVEL` (default `WARNING`) controls console output.
+  - `LOG_FILE` overrides the JSONL path.
+  - `EVENTS_ENABLED` (default `true`) disables/enables SQLite event recording.
+
+To inspect logs locally:
+
+```bash
+tail -f logs/app.jsonl | jq
+```
+
+
 ## Extensibility (Adding a Provider)
 
 1) Implement a new adapter in `app/providers/<provider>.py` that subclasses `ProviderAdapter` and translates to/from the provider’s API.
