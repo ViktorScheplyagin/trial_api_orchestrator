@@ -6,13 +6,20 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.openapi.docs import get_swagger_ui_html
 
 from app.api import admin, openai
 from app.core.config import load_config
 from app.storage.credentials import init_db
 from app.router.selector import registry
 
-app = FastAPI(title="Trial API Orchestrator", version="0.1.0")
+app = FastAPI(
+    title="Trial API Orchestrator",
+    version="0.1.0",
+    docs_url=None,
+    redoc_url=None,
+    openapi_url="/api/openapi.json",
+)
 app.include_router(openai.router)
 app.include_router(admin.router)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -35,4 +42,12 @@ def dashboard(request: Request):
             "request": request,
             "states": states,
         },
+    )
+
+
+@app.get("/api/docs", response_class=HTMLResponse)
+def swagger_ui() -> HTMLResponse:
+    return get_swagger_ui_html(
+        openapi_url="/api/openapi.json",
+        title="Trial API Orchestrator API",
     )

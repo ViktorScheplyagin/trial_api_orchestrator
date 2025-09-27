@@ -68,11 +68,25 @@ class ProviderRegistry:
 registry = ProviderRegistry()
 
 
-async def select_provider(request: ChatCompletionRequest) -> ChatCompletionResponse:
-    """Select the first available provider to satisfy the request."""
+async def select_provider(
+    request: ChatCompletionRequest,
+    provider_id: str | None = None,
+) -> ChatCompletionResponse:
+    """Select a provider for the request, honoring explicit overrides."""
+
+    available_providers = list(registry.providers())
+    if provider_id:
+        provider_lookup = {provider.id: provider for provider in available_providers}
+        provider_model = provider_lookup.get(provider_id)
+        if not provider_model:
+            raise ProviderUnavailableError(provider_id, message="Provider not configured")
+        providers_to_try = [provider_model]
+    else:
+        providers_to_try = available_providers
+
     last_error: Dict[str, ProviderUnavailableError] = {}
 
-    for provider_model in registry.providers():
+    for provider_model in providers_to_try:
         adapter = registry.get_adapter(provider_model)
         try:
             return await adapter.chat_completions(request)

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from typing import Annotated, Literal, Optional
+
+from fastapi import APIRouter, Header
 from fastapi.responses import JSONResponse
 
 from app.core.exceptions import AuthenticationRequiredError, ProviderUnavailableError
@@ -12,10 +14,111 @@ from app.router.selector import select_provider
 router = APIRouter(prefix="/v1")
 
 
-@router.post("/chat/completions", response_model=ChatCompletionResponse)
-async def create_chat_completion(payload: ChatCompletionRequest) -> ChatCompletionResponse:
+CHAT_COMPLETION_EXAMPLES = {
+    "cerebras": {
+        "summary": "Cerebras adapter",
+        "value": {
+            "model": "cerebras/llama3.1-8b",
+            "messages": [
+                {"role": "system", "content": "You are a helpful assistant."},
+                {
+                    "role": "user",
+                    "content": "Summarize the provider failover strategy in two sentences.",
+                },
+            ],
+            "temperature": 0.2,
+        },
+    },
+    "cohere": {
+        "summary": "Cohere adapter",
+        "value": {
+            "model": "cohere/command-r-plus",
+            "messages": [
+                {"role": "system", "content": "You are an orchestrator QA assistant."},
+                {
+                    "role": "user",
+                    "content": "List two Cohere-specific response fields we map into OpenAI format.",
+                },
+            ],
+        },
+    },
+    "openrouter": {
+        "summary": "OpenRouter adapter",
+        "value": {
+            "model": "openrouter/anthropic/claude-3-haiku",
+            "messages": [
+                {"role": "system", "content": "You normalize OpenRouter responses."},
+                {
+                    "role": "user",
+                    "content": "Respond with a JSON object showing the keys you return.",
+                },
+            ],
+            "temperature": 0.5,
+        },
+    },
+    "huggingface": {
+        "summary": "Hugging Face adapter",
+        "value": {
+            "model": "huggingface/meta-llama/Meta-Llama-3-8B-Instruct",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "Format outputs in Markdown unless told otherwise.",
+                },
+                {
+                    "role": "user",
+                    "content": "Give one bullet with a deployment tip for Hugging Face integration.",
+                },
+            ],
+        },
+    },
+    "gemini": {
+        "summary": "Gemini adapter",
+        "value": {
+            "model": "gemini-1.5-flash",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "Translate OpenAI chat requests into Gemini contents and back.",
+                },
+                {
+                    "role": "user",
+                    "content": "Explain how safety attributes are normalized in one sentence.",
+                },
+            ],
+            "top_p": 0.9,
+        },
+    },
+}
+
+
+@router.post(
+    "/chat/completions",
+    response_model=ChatCompletionResponse,
+    openapi_extra={
+        "requestBody": {
+            "content": {
+                "application/json": {
+                    "examples": CHAT_COMPLETION_EXAMPLES,
+                }
+            }
+        }
+    },
+)
+async def create_chat_completion(
+    payload: ChatCompletionRequest,
+    provider_id: Annotated[
+        Optional[
+            Literal["cerebras", "cohere", "gemini", "huggingface", "openrouter"]
+        ],
+        Header(
+            alias="x-provider-id",
+            description="Force routing to a specific provider adapter",
+        ),
+    ] = None,
+) -> ChatCompletionResponse:
     try:
-        return await select_provider(payload)
+        return await select_provider(payload, provider_id)
     except AuthenticationRequiredError as exc:
         return JSONResponse(
             status_code=401,
