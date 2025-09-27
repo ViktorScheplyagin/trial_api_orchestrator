@@ -12,3 +12,15 @@ providers:
       key_ref: cerebras_api_key
     models:
       default: "cerebras-gpt-4o-mini"
+  - id: cohere
+    name: Cohere
+    priority: 20
+    base_url: "https://api.cohere.com"
+    chat_completions_path: "/v2/chat"
+    availability:
+      cooldown_seconds: 300
+    credentials:
+      type: sqlite
+      key_ref: cohere_api_key
+    models:
+      default: "command-r-plus"

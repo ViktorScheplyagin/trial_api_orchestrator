@@ -35,6 +35,16 @@ Document the autonomous agents participating in the trial API orchestrator. Upda
   - **Owner / Maintainer:** Orchestrator Team
   - **Source Location:** `app/storage/credentials.py` (planned)
 
+- **Name:** Cohere Adapter
+  - **Description:** Calls Cohere's `/v2/chat` endpoint and normalizes responses into the orchestrator's OpenAI-style schema.
+  - **Primary Capabilities:**
+    - Cohere chat payload construction and HTTP invocation
+    - Response normalization including tool-calls and citation metadata
+  - **Inputs:** Normalized chat completion requests from the router and Cohere API credentials
+  - **Outputs:** Chat completion responses compatible with `ChatCompletionResponse`
+  - **Owner / Maintainer:** Orchestrator Team
+  - **Source Location:** `app/providers/cohere.py`
+
 ## Decisions Snapshot (v1)
 - **API surface:** Only `POST /v1/chat/completions` (no streaming). `GET /v1/models` deferred.
 - **Providers:** Start with an OpenAI-compatible provider (Cerebras), then OpenRouter; Gemini later.
