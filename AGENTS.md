@@ -45,6 +45,16 @@ Document the autonomous agents participating in the trial API orchestrator. Upda
   - **Owner / Maintainer:** Orchestrator Team
   - **Source Location:** `app/providers/cohere.py`
 
+- **Name:** OpenRouter Adapter
+  - **Description:** Bridges OpenRouter's OpenAI-style gateway for multi-provider access and ensures responses align with orchestrator expectations.
+  - **Primary Capabilities:**
+    - Forwards normalized chat completion requests to OpenRouter's `/api/v1/chat/completions`
+    - Maps OpenRouter errors to orchestrator exceptions and harmonizes response defaults
+  - **Inputs:** Normalized chat completion requests and OpenRouter API credentials
+  - **Outputs:** Chat completion responses compatible with `ChatCompletionResponse`
+  - **Owner / Maintainer:** Orchestrator Team
+  - **Source Location:** `app/providers/openrouter.py`
+
 ## Decisions Snapshot (v1)
 - **API surface:** Only `POST /v1/chat/completions` (no streaming). `GET /v1/models` deferred.
 - **Providers:** Start with an OpenAI-compatible provider (Cerebras), then OpenRouter; Gemini later.

@@ -206,6 +206,13 @@ Where a provider’s schema diverges, adapt minimally to preserve OpenAI parity 
 - Only forward parameters Cohere accepts (`temperature`, `max_tokens`, `top_p`, `stream`). Presence/frequency penalties are disallowed by Cohere; dropping unsupported controls prevents 400 responses while matching orchestrator defaults.
 
 
+### OpenRouter-specific Notes
+
+- OpenRouter mirrors OpenAI’s schema, so adapters can forward most optional tuning parameters (`temperature`, `top_p`, penalties, `user`) without translation. Keep payloads minimal: omit `None` values to avoid API validation noise.
+- Responses generally include `object`, `created`, and `usage`; still default these fields to safe values so downstream consumers have consistent data even when OpenRouter omits them for specific providers.
+- HTTP errors (including provider-level rate limits surfaced as 429) should be captured via `credentials.record_error` to ensure the registry deprioritizes OpenRouter while it recovers.
+
+
 ## Credentials & Security
 
 - Store and fetch keys via `app/storage/credentials.py`.

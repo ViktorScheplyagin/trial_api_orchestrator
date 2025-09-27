@@ -24,3 +24,15 @@ providers:
       key_ref: cohere_api_key
     models:
       default: "command-r-plus"
+  - id: openrouter
+    name: OpenRouter
+    priority: 30
+    base_url: "https://openrouter.ai/api"
+    chat_completions_path: "/v1/chat/completions"
+    availability:
+      cooldown_seconds: 300
+    credentials:
+      type: sqlite
+      key_ref: openrouter_api_key
+    models:
+      default: "openrouter/auto"

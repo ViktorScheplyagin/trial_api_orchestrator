@@ -10,6 +10,7 @@ from app.core.exceptions import ProviderUnavailableError
 from app.providers.base import ChatCompletionRequest, ChatCompletionResponse, ProviderAdapter
 from app.providers.cerebras import CerebrasProvider
 from app.providers.cohere import CohereProvider
+from app.providers.openrouter import OpenRouterProvider
 from app.storage import credentials
 from app.storage.models import ProviderCredential
 
@@ -34,6 +35,7 @@ class ProviderRegistry:
     _adapter_map: Dict[str, Type[ProviderAdapter]] = {
         "cerebras": CerebrasProvider,
         "cohere": CohereProvider,
+        "openrouter": OpenRouterProvider,
     }
 
     def __init__(self, config: AppConfig | None = None) -> None:
