@@ -69,6 +69,11 @@ button.secondary {
     background-color: #dc2626;
 }
 
+.badge-amber {
+    background-color: #f59e0b;
+    color: #1f2937;
+}
+
 .provider-name {
     font-weight: 600;
 }

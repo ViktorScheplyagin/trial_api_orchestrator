@@ -27,3 +27,4 @@ The dev server now listens at http://localhost:3001/ by default; override the ho
 2) Register the adapter in `ProviderRegistry._adapter_map` (id → class).
 3) Add the provider to `config/providers.yaml` with appropriate fields and priority.
 4) Restart; the admin dashboard will show the provider. Add/update the API key via the UI or Admin API.
+To learn more, read the detailed [adapters guide](./ai_docs/adapter_docs.md)

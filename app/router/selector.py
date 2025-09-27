@@ -23,8 +23,12 @@ class ProviderState:
     credential: Optional[ProviderCredential]
 
     @property
+    def has_api_key(self) -> bool:
+        return bool(self.credential and self.credential.api_key)
+
+    @property
     def is_available(self) -> bool:
-        if not self.credential or not self.credential.api_key:
+        if not self.has_api_key:
             return False
         if self.credential.last_error:
             return False

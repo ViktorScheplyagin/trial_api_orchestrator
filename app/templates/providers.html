@@ -26,6 +26,8 @@
                     <td>
                         {% if state.is_available %}
                         <span class="badge badge-green">Available</span>
+                        {% elif not state.has_api_key %}
+                        <span class="badge badge-amber">API key missing</span>
                         {% else %}
                         <span class="badge badge-red">Unavailable</span>
                         {% if state.credential and state.credential.last_error %}
