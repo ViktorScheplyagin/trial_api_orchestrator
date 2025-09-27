@@ -24,6 +24,18 @@ providers:
       key_ref: cohere_api_key
     models:
       default: "command-r-plus"
+  - id: gemini
+    name: Gemini API
+    priority: 25
+    base_url: "https://generativelanguage.googleapis.com"
+    chat_completions_path: "/v1beta/models/{model}:generateContent"
+    availability:
+      cooldown_seconds: 300
+    credentials:
+      type: sqlite
+      key_ref: gemini_api_key
+    models:
+      default: "models/gemini-1.5-flash-latest"
   - id: openrouter
     name: OpenRouter
     priority: 30

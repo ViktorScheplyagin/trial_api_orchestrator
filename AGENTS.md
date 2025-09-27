@@ -65,6 +65,16 @@ Document the autonomous agents participating in the trial API orchestrator. Upda
   - **Owner / Maintainer:** Orchestrator Team
   - **Source Location:** `app/providers/huggingface.py`
 
+- **Name:** Gemini Adapter
+  - **Description:** Bridges Google’s Gemini `generateContent` endpoint with the orchestrator by translating OpenAI-style messages into Gemini contents and back.
+  - **Primary Capabilities:**
+    - Converts system/user/assistant messages into Gemini `contents` and `systemInstruction`
+    - Normalizes Gemini candidates, safety data, and usage metadata into `ChatCompletionResponse`
+  - **Inputs:** Normalized chat completion requests and Gemini API key
+  - **Outputs:** Chat completion responses compatible with `ChatCompletionResponse`
+  - **Owner / Maintainer:** Orchestrator Team
+  - **Source Location:** `app/providers/gemini.py`
+
 ## Decisions Snapshot (v1)
 - **API surface:** Only `POST /v1/chat/completions` (no streaming). `GET /v1/models` deferred.
 - **Providers:** Start with an OpenAI-compatible provider (Cerebras), then OpenRouter; Gemini later.

@@ -220,6 +220,13 @@ Where a provider’s schema diverges, adapt minimally to preserve OpenAI parity 
 - Hugging Face usage metadata varies by model; pass through provided `usage` blocks untouched and consider tracking derived totals when they are missing in future iterations.
 
 
+### Gemini-specific Notes
+
+- Gemini’s REST API expects `contents[]` with roles `user`/`model` plus an optional `systemInstruction`. Convert OpenAI-style messages by merging system prompts into `systemInstruction` and mapping assistant messages to the `model` role.
+- Generation controls live under `generationConfig` (`temperature`, `maxOutputTokens`, `topP`, `frequencyPenalty`, `presencePenalty`). Only include keys that are provided to keep requests minimal.
+- Responses return `candidates` with `content.parts[].text`; concatenate text parts for the assistant message and surface safety/citation metadata inside `message.metadata`. Map `usageMetadata` (`promptTokenCount`, `candidatesTokenCount`, `totalTokenCount`) into the orchestrator’s usage fields.
+
+
 ## Credentials & Security
 
 - Store and fetch keys via `app/storage/credentials.py`.
