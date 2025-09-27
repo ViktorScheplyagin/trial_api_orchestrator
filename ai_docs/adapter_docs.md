@@ -2,8 +2,8 @@
 
 This document explains how provider adapters work in the Trial API Orchestrator and gives a step‑by‑step guide to add, test, and maintain new adapters. Read together with:
 
-- Architecture overview: ./architecture.md
-- Provider API notes: ./providers_api_docs.md
+- Architecture overview: [./architecture.md](./architecture.md)
+- Provider API notes: [./providers_api_docs.md](./providers_api_docs.md)
 - Supported providers reference: [./supported_providers.md](./supported_providers.md)
 
 
@@ -197,6 +197,13 @@ Ensure the result conforms to `ChatCompletionResponse` and includes at least:
 - `usage`: optional; preserve when provided (prompt_tokens, completion_tokens, total_tokens).
 
 Where a provider’s schema diverges, adapt minimally to preserve OpenAI parity (see examples in ./providers_api_docs.md).
+
+
+### Cohere-specific Notes
+
+- Cohere’s `/v2/chat` response wraps assistant output in `message.content[]` items where `type` may be `text`, `tool_calls`, or `citation`. Concatenate `text` segments for `message.content` and surface `tool_calls` using OpenAI’s `function` schema (stringify `arguments`). Preserve citations in `message.metadata` to aid downstream UIs.
+- Usage metrics appear under `usage.tokens` with `input` and `output` counts. Derive `total_tokens` where missing so the router’s quota heuristics remain consistent.
+- Only forward parameters Cohere accepts (`temperature`, `max_tokens`, `top_p`, `stream`). Presence/frequency penalties are disallowed by Cohere; dropping unsupported controls prevents 400 responses while matching orchestrator defaults.
 
 
 ## Credentials & Security
