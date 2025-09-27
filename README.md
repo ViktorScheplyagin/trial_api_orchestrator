@@ -1,6 +1,6 @@
 # Trial API Orchestrator
 
-FastAPI application that presents an OpenAI-compatible `POST /v1/chat/completions` endpoint while rotating through trial-friendly providers such as Cerebras. The MVP focuses on credential management and provider failover without detailed usage tracking.
+FastAPI application that presents an OpenAI-compatible `POST /v1/chat/completions` endpoint while rotating through trial-friendly providers such as Cerebras, Gemini, OpenRouter, HuggingFace and Cohere. Here's possible to add any other provider support by registering your own [adapter](./ai_docs/adapter_docs.md). The MVP focuses on credential management and provider failover without detailed usage tracking.
 
 ## Prerequisites
 
@@ -20,6 +20,9 @@ python -m app
 ```
 
 The dev server now listens at http://localhost:3001/ by default; override the host or port with `UVICORN_HOST` / `UVICORN_PORT` if needed.
+
+The OpenAPI/Swagger documentation is available at http://localhost:3001/api/docs.
+
 
 ## Extensibility (Adding a Provider)
 
