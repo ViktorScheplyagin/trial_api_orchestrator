@@ -48,15 +48,3 @@ providers:
           key_ref: openrouter_api_key
       models:
           default: "deepseek/deepseek-chat-v3.1:free"
-    - id: huggingface
-      name: Hugging Face Inference API
-      priority: 40
-      base_url: "https://api-inference.huggingface.co"
-      chat_completions_path: "/models/{model_id}/chat/completions"
-      availability:
-          cooldown_seconds: 300
-      credentials:
-          type: sqlite
-          key_ref: huggingface_api_token
-      models:
-          default: "HuggingFaceH4/zephyr-7b-beta"

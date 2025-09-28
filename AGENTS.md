@@ -55,16 +55,6 @@ Document the autonomous agents participating in the trial API orchestrator. Upda
   - **Owner / Maintainer:** Orchestrator Team
   - **Source Location:** `app/providers/openrouter.py`
 
-- **Name:** Hugging Face Adapter
-  - **Description:** Integrates the Hugging Face Inference API `/models/{model_id}/chat/completions` endpoint with the orchestrator’s OpenAI-style interface.
-  - **Primary Capabilities:**
-    - Formats chat payloads for Hugging Face-hosted models and performs authenticated HTTP requests
-    - Normalizes responses, generating OpenAI-style choices even when the API returns only `generated_text`
-  - **Inputs:** Normalized chat completion requests plus Hugging Face API token
-  - **Outputs:** Chat completion responses compatible with `ChatCompletionResponse`
-  - **Owner / Maintainer:** Orchestrator Team
-  - **Source Location:** `app/providers/huggingface.py`
-
 - **Name:** Gemini Adapter
   - **Description:** Bridges Google’s Gemini `generateContent` endpoint with the orchestrator by translating OpenAI-style messages into Gemini contents and back.
   - **Primary Capabilities:**

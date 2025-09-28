@@ -45,21 +45,6 @@ OpenRouter acts as a unified gateway to multiple LLM providers. Its API closely 
 
 ---
 
-## Hugging Face Inference API (Chat / Models)
-
-* **POST /models/{model_id}/chat/completions**  
-  For conversational generation. You submit `messages` in the system/user/assistant format.  
-  **Notes / Features**:  
-  • Authentication: via header `Authorization: Bearer <HF_TOKEN>`.  
-  • Streaming (`stream`) is supported when model/infrastructure allows.  
-  • Optional parameters: you may override system prompts, pass additional controls or overrides.  
-  • The model must be one supported by the inference provider API.  
-
-* **GET /models**  
-  Retrieves metadata about models available in the inference API, including context lengths and capabilities.
-
----
-
 ## Gemini API (Google)
 
 Gemini primarily encourages using the client SDK, but supports REST-style endpoints as well.

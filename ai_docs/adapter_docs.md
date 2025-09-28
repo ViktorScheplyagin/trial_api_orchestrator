@@ -240,13 +240,6 @@ Where a provider’s schema diverges, adapt minimally to preserve OpenAI parity 
 - HTTP errors (including provider-level rate limits surfaced as 429) should be captured via `credentials.record_error` to ensure the registry deprioritizes OpenRouter while it recovers.
 
 
-### Hugging Face-specific Notes
-
-- Hugging Face’s chat endpoint is namespaced by model id in the URL (`/models/{model_id}/chat/completions`). The adapter should format the path using `request.model` and avoid double slashes by trimming `base_url`.
-- Some responses return `generated_text` instead of `choices`; synthesize a default `choice` with assistant role content so downstream consumers receive a consistent schema.
-- Hugging Face usage metadata varies by model; pass through provided `usage` blocks untouched and consider tracking derived totals when they are missing in future iterations.
-
-
 ### Gemini-specific Notes
 
 - Gemini’s REST API expects `contents[]` with roles `user`/`model` plus an optional `systemInstruction`. Convert OpenAI-style messages by merging system prompts into `systemInstruction` and mapping assistant messages to the `model` role.
@@ -286,8 +279,6 @@ Recommended approaches:
 - OpenRouter: Schema is very close to OpenAI; pass through tuning fields. See details in ./providers_api_docs.md.
 - Gemini: Uses `...:generateContent` endpoints and different content shape; a Gemini adapter should translate `messages` to `contents` and map candidates → choices.
 - Cohere: `POST /v2/chat`; message schema differs (e.g., tools, documents). Normalize to `choices[].message.content`.
-- Hugging Face Inference: Paths under `/models/{model_id}`; ensure correct model id and auth header.
-
 Consult ./supported_providers.md for capability/limit nuances.
 
 

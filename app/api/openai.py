@@ -56,22 +56,6 @@ CHAT_COMPLETION_EXAMPLES = {
             "temperature": 0.5,
         },
     },
-    "huggingface": {
-        "summary": "Hugging Face adapter",
-        "value": {
-            "model": "huggingface/meta-llama/Meta-Llama-3-8B-Instruct",
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "Format outputs in Markdown unless told otherwise.",
-                },
-                {
-                    "role": "user",
-                    "content": "Give one bullet with a deployment tip for Hugging Face integration.",
-                },
-            ],
-        },
-    },
     "gemini": {
         "summary": "Gemini adapter",
         "value": {
@@ -109,7 +93,7 @@ async def create_chat_completion(
     payload: ChatCompletionRequest,
     provider_id: Annotated[
         Optional[
-            Literal["cerebras", "cohere", "gemini", "huggingface", "openrouter"]
+            Literal["cerebras", "cohere", "gemini", "openrouter"]
         ],
         Header(
             alias="x-provider-id",
