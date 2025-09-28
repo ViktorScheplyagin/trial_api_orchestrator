@@ -26,31 +26,8 @@ class CerebrasProvider(ProviderAdapter):
         if not api_key:
             raise AuthenticationRequiredError(self.provider_id)
 
-        url = f"{self._base_url}{self._path}"
         payload = self._build_payload(request)
-
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        }
-
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(url, json=payload, headers=headers)
-
-        if response.status_code == 401:
-            credentials.record_error(self.provider_id, "auth")
-            raise AuthenticationRequiredError(self.provider_id)
-
-        if response.status_code in {402, 403, 429}:
-            credentials.record_error(self.provider_id, "rate_limit")
-            raise ProviderUnavailableError(self.provider_id, message="Provider quota exhausted")
-
-        if response.is_error:
-            credentials.record_error(self.provider_id, f"http_{response.status_code}")
-            raise ProviderUnavailableError(self.provider_id, message="Provider error")
-
-        data: Dict[str, Any] = response.json()
-        credentials.clear_error(self.provider_id)
+        data = await self._post_chat(payload, api_key, track_errors=True)
 
         # Ensure OpenAI-compatible keys exist
         data.setdefault("object", "chat.completion")
@@ -58,6 +35,19 @@ class CerebrasProvider(ProviderAdapter):
         data.setdefault("model", request.model)
 
         return ChatCompletionResponse.model_validate(data)
+
+    async def validate_api_key(self, api_key: str) -> None:
+        model = self._config.models.get("default")
+        if not model:
+            raise ProviderUnavailableError(self.provider_id, message="Health check model not configured")
+
+        request = ChatCompletionRequest(
+            model=model,
+            messages=[{"role": "user", "content": "healthcheck"}],
+            max_tokens=1,
+        )
+        payload = self._build_payload(request)
+        await self._post_chat(payload, api_key, track_errors=False)
 
     def _build_payload(self, request: ChatCompletionRequest) -> Dict[str, Any]:
         payload: Dict[str, Any] = {
@@ -78,3 +68,38 @@ class CerebrasProvider(ProviderAdapter):
             if value is not None:
                 payload[field] = value
         return payload
+
+    async def _post_chat(self, payload: Dict[str, Any], api_key: str, track_errors: bool) -> Dict[str, Any]:
+        url = f"{self._base_url}{self._path}"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(url, json=payload, headers=headers)
+        except httpx.RequestError as exc:
+            if track_errors:
+                credentials.record_error(self.provider_id, "network")
+            raise ProviderUnavailableError(self.provider_id, message="Provider request failed") from exc
+
+        if response.status_code == 401:
+            if track_errors:
+                credentials.record_error(self.provider_id, "auth")
+            raise AuthenticationRequiredError(self.provider_id)
+
+        if response.status_code in {402, 403, 429}:
+            if track_errors:
+                credentials.record_error(self.provider_id, "rate_limit")
+            raise ProviderUnavailableError(self.provider_id, message="Provider quota exhausted")
+
+        if response.is_error:
+            if track_errors:
+                credentials.record_error(self.provider_id, f"http_{response.status_code}")
+            raise ProviderUnavailableError(self.provider_id, message="Provider error")
+
+        if track_errors:
+            credentials.clear_error(self.provider_id)
+
+        return response.json()

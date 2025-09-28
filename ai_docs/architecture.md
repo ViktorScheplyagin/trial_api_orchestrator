@@ -57,6 +57,7 @@ Client (OpenAI-style)                              Admin (Browser)
 
 - app/api/admin.py
   - Minimal admin endpoints to list providers and manage credentials.
+  - Validates new API keys via provider health checks before persisting them.
   - Supports form submissions (from the dashboard) and JSON body for API use.
 
 - app/router/selector.py
@@ -66,7 +67,7 @@ Client (OpenAI-style)                              Admin (Browser)
 
 - app/providers/base.py
   - Defines `ChatCompletionRequest` and `ChatCompletionResponse` Pydantic models.
-  - Declares `ProviderAdapter` interface with `chat_completions()`.
+  - Declares `ProviderAdapter` interface with `chat_completions()` and `validate_api_key()`.
 
 - app/providers/cerebras.py
   - Implements `ProviderAdapter` for Cerebras. Builds an OpenAI‑like payload and calls the provider via `httpx`.
@@ -105,8 +106,8 @@ Chat completion (non‑streaming):
 
 Admin credential management:
 1) Browser loads `GET /` to render providers and current availability.
-2) Submitting the form calls `POST /admin/providers/{provider_id}/credentials` which upserts the API key.
-3) Errors (auth or throttling) set `last_error`, toggling the red badge until cleared by a successful call or key update.
+2) Submitting the form calls `POST /admin/providers/{provider_id}/credentials`; the admin API runs a lightweight chat health check with the provided key before storing it.
+3) Auth failures mark the provider as "Invalid API key" in the dashboard; other errors set `last_error`, toggling the red badge until cleared by a successful call or key update.
 
 ## Configuration
 
@@ -120,7 +121,7 @@ Environment and persistence:
 
 ## Error Handling & Availability
 
-- Authentication (401) raises `AuthenticationRequiredError` and records `last_error="auth"`.
+- Authentication (401) raises `AuthenticationRequiredError` and records `last_error="auth"` (rendered as "Invalid API key" on the dashboard).
 - Rate limits/quotas (402/403/429) raise `ProviderUnavailableError` and record `last_error="rate_limit"`.
 - Other HTTP errors mark `last_error` with `http_<status>`.
 - UI green badge: API key present and `last_error` is empty. Red otherwise.

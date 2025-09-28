@@ -9,7 +9,9 @@ from fastapi import APIRouter, Body, Form, HTTPException, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.core.config import load_config
-from app.storage.credentials import delete_api_key, list_credentials, upsert_api_key
+from app.core.exceptions import AuthenticationRequiredError, ProviderUnavailableError
+from app.router.selector import registry
+from app.storage.credentials import delete_api_key, list_credentials, record_error, upsert_api_key
 from app.storage.models import ProviderCredential
 
 router = APIRouter(prefix="/admin")
@@ -50,7 +52,7 @@ def list_providers() -> dict:
 
 
 @router.post("/providers/{provider_id}/credentials")
-def set_provider_key(
+async def set_provider_key(
     provider_id: str,
     api_key: str | None = Form(default=None),
     api_key_body: dict | None = Body(default=None),
@@ -60,6 +62,22 @@ def set_provider_key(
         api_key_value = api_key_body.get("api_key")
     if not api_key_value:
         raise HTTPException(status_code=400, detail="Missing api_key")
+
+    config = load_config()
+    provider_model = next((p for p in config.providers if p.id == provider_id), None)
+    if provider_model is None:
+        raise HTTPException(status_code=404, detail="Provider not configured")
+
+    adapter = registry.get_adapter(provider_model)
+
+    try:
+        await adapter.validate_api_key(api_key_value)
+    except AuthenticationRequiredError as exc:
+        record_error(provider_id, "auth")
+        raise HTTPException(status_code=400, detail="Invalid API key") from exc
+    except ProviderUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=f"Provider health check failed: {exc.message}") from exc
+
     upsert_api_key(provider_id, api_key_value)
     if api_key is not None:
         return RedirectResponse(url="/", status_code=303)

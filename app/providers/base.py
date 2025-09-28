@@ -35,3 +35,6 @@ class ProviderAdapter:
 
     async def chat_completions(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
         raise NotImplementedError
+
+    async def validate_api_key(self, api_key: str) -> None:
+        raise NotImplementedError

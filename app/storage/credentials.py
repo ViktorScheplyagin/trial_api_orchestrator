@@ -50,6 +50,14 @@ def record_error(provider_id: str, error_code: str) -> None:
                 .where(ProviderCredential.id == existing.id)
                 .values(last_error=error_code, last_error_at=datetime.now(timezone.utc))
             )
+        else:
+            credential = ProviderCredential(
+                provider_id=provider_id,
+                api_key="",
+                last_error=error_code,
+                last_error_at=datetime.now(timezone.utc),
+            )
+            session.add(credential)
 
 
 def clear_error(provider_id: str) -> None:
