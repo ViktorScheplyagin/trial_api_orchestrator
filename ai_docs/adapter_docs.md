@@ -24,7 +24,12 @@ In v1, only non‑streaming chat completions are supported.
 - `app/providers/base.py`
   - `ChatCompletionRequest`: Pydantic model matching OpenAI chat input (model, messages, temperature, max_tokens, etc.).
   - `ChatCompletionResponse`: Pydantic model for the normalized response.
-  - `ProviderAdapter`: abstract base; adapters implement `chat_completions(self, request)` (async) and set `provider_id`.
+  - `ProviderAdapter`: abstract base; adapters implement:
+    - `chat_completions(self, request)` (async): perform the actual chat call using the stored key.
+    - `validate_api_key(self, api_key)` (async): perform a lightweight healthcheck using the provided key without persisting it. Must raise:
+      - `AuthenticationRequiredError(provider_id)` on 401/invalid key.
+      - `ProviderUnavailableError(provider_id, message=...)` on network/HTTP/ratelimit issues.
+      - Return `None` on success. Must not write to storage.
 
 - `app/router/selector.py`
   - `ProviderRegistry` holds the mapping from provider id → adapter class (`_adapter_map`) and selects providers by priority.
@@ -51,7 +56,8 @@ High‑level steps:
 2) Register the adapter in `app/router/selector.py` `_adapter_map`.
 3) Add the provider to `config/providers.yaml` with URL/path, priority, and model defaults.
 4) Restart the app; set API key via the dashboard (`GET /`) or Admin API.
-5) Smoke test `POST /v1/chat/completions` with a minimal payload.
+5) Implement `validate_api_key()` mirroring existing adapters (Cerebras/OpenRouter/HF/Gemini/Cohere) with a minimal `"healthcheck"` message and `max_tokens=1`.
+6) Smoke test `POST /v1/chat/completions` with a minimal payload.
 
 
 ### Adapter Skeleton
@@ -113,6 +119,27 @@ class OpenRouterProvider(ProviderAdapter):
         data.setdefault("model", request.model)
 
         return ChatCompletionResponse.model_validate(data)
+
+    async def validate_api_key(self, api_key: str) -> None:
+        # Use default model from config and a minimal payload
+        model = self._config.models.get("default")
+        if not model:
+            raise ProviderUnavailableError(self.provider_id, message="Health check model not configured")
+        probe = ChatCompletionRequest(
+            model=model,
+            messages=[{"role": "user", "content": "healthcheck"}],
+            max_tokens=1,
+        )
+        payload = self._build_payload(probe)
+        url = f"{self._base_url}{self._path}"
+        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(url, json=payload, headers=headers)
+        if resp.status_code == 401:
+            raise AuthenticationRequiredError(self.provider_id)
+        if resp.status_code in {402, 403, 429} or resp.is_error:
+            raise ProviderUnavailableError(self.provider_id, message=f"http_{resp.status_code}")
+        return None
 
     def _build_payload(self, request: ChatCompletionRequest) -> Dict[str, Any]:
         payload: Dict[str, Any] = {
