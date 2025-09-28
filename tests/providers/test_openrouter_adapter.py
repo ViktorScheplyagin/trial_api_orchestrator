@@ -67,7 +67,7 @@ async def test_openrouter_adapter_success(monkeypatch, provider_model):
         "id": "chatcmpl-123",
         "object": "chat.completion",
         "created": 1234567890,
-        "model": "openrouter/auto",
+        "model": "deepseek/deepseek-chat-v3.1:free",
         "choices": [
             {
                 "index": 0,
@@ -85,7 +85,7 @@ async def test_openrouter_adapter_success(monkeypatch, provider_model):
     monkeypatch.setattr("app.providers.openrouter.httpx.AsyncClient", _stub_async_client(fake_http, recorder))
 
     request = ChatCompletionRequest(
-        model="openrouter/auto",
+        model="deepseek/deepseek-chat-v3.1:free",
         messages=[{"role": "user", "content": "Hi"}],
         temperature=0.7,
         max_tokens=256,
@@ -109,7 +109,7 @@ async def test_openrouter_adapter_missing_credentials(monkeypatch, provider_mode
     adapter = OpenRouterProvider(provider_model)
     monkeypatch.setattr("app.providers.openrouter.credentials.get_api_key", lambda _: None)
 
-    request = ChatCompletionRequest(model="openrouter/auto", messages=[{"role": "user", "content": "Hi"}])
+    request = ChatCompletionRequest(model="deepseek/deepseek-chat-v3.1:free", messages=[{"role": "user", "content": "Hi"}])
 
     with pytest.raises(AuthenticationRequiredError):
         await adapter.chat_completions(request)
@@ -125,7 +125,7 @@ async def test_openrouter_adapter_rate_limited(monkeypatch, provider_model):
     monkeypatch.setattr("app.providers.openrouter.credentials.record_error", lambda *args, **kwargs: None)
     monkeypatch.setattr("app.providers.openrouter.httpx.AsyncClient", _stub_async_client(fake_http, recorder))
 
-    request = ChatCompletionRequest(model="openrouter/auto", messages=[{"role": "user", "content": "Hi"}])
+    request = ChatCompletionRequest(model="deepseek/deepseek-chat-v3.1:free", messages=[{"role": "user", "content": "Hi"}])
 
     with pytest.raises(ProviderUnavailableError):
         await adapter.chat_completions(request)

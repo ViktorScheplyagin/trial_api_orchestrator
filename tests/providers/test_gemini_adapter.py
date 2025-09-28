@@ -54,7 +54,7 @@ def provider_model() -> ProviderModel:
         chat_completions_path="/v1beta/models/{model}:generateContent",
         availability={},
         credentials={},
-        models={},
+        models={"default": "models/gemini-2.5-flash"},
     )
 
 
@@ -86,7 +86,7 @@ async def test_gemini_adapter_success(monkeypatch, provider_model):
     monkeypatch.setattr("app.providers.gemini.httpx.AsyncClient", _stub_async_client(fake_http, recorder))
 
     request = ChatCompletionRequest(
-        model="models/gemini-1.5-flash-latest",
+        model="models/gemini-2.5-flash",
         messages=[
             {"role": "system", "content": "You are helpful."},
             {"role": "user", "content": "Say hi"},
@@ -103,7 +103,7 @@ async def test_gemini_adapter_success(monkeypatch, provider_model):
 
     assert (
         recorder["url"]
-        == "https://generativelanguage.googleapis.com/v1beta/models/models/gemini-1.5-flash-latest:generateContent"
+        == "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
     )
     assert recorder["headers"]["x-goog-api-key"] == "gemini-key"
 
@@ -129,10 +129,32 @@ async def test_gemini_adapter_missing_credentials(monkeypatch, provider_model):
     adapter = GeminiProvider(provider_model)
     monkeypatch.setattr("app.providers.gemini.credentials.get_api_key", lambda _: None)
 
-    request = ChatCompletionRequest(model="models/gemini-1.5-flash-latest", messages=[{"role": "user", "content": "Ping"}])
+    request = ChatCompletionRequest(model="models/gemini-2.5-flash", messages=[{"role": "user", "content": "Ping"}])
 
     with pytest.raises(AuthenticationRequiredError):
         await adapter.chat_completions(request)
+
+
+@pytest.mark.asyncio
+async def test_gemini_adapter_includes_provider_error_detail(monkeypatch, provider_model):
+    adapter = GeminiProvider(provider_model)
+    recorder: dict = {}
+    payload = {"error": {"status": "PERMISSION_DENIED", "message": "API key invalid."}}
+    fake_http = FakeResponse(403, payload)
+
+    monkeypatch.setattr("app.providers.gemini.credentials.get_api_key", lambda _: "gemini-key")
+    monkeypatch.setattr("app.providers.gemini.credentials.record_error", lambda *args, **kwargs: None)
+    monkeypatch.setattr("app.providers.gemini.credentials.clear_error", lambda *args, **kwargs: None)
+    monkeypatch.setattr("app.providers.gemini.httpx.AsyncClient", _stub_async_client(fake_http, recorder))
+
+    request = ChatCompletionRequest(model="models/gemini-2.5-flash", messages=[{"role": "user", "content": "Ping"}])
+
+    with pytest.raises(ProviderUnavailableError) as excinfo:
+        await adapter.chat_completions(request)
+
+    message = excinfo.value.message
+    assert "PERMISSION_DENIED" in message
+    assert "API key invalid." in message
 
 
 @pytest.mark.asyncio
@@ -145,7 +167,27 @@ async def test_gemini_adapter_rate_limited(monkeypatch, provider_model):
     monkeypatch.setattr("app.providers.gemini.credentials.record_error", lambda *args, **kwargs: None)
     monkeypatch.setattr("app.providers.gemini.httpx.AsyncClient", _stub_async_client(fake_http, recorder))
 
-    request = ChatCompletionRequest(model="models/gemini-1.5-flash-latest", messages=[{"role": "user", "content": "Ping"}])
+    request = ChatCompletionRequest(model="models/gemini-2.5-flash", messages=[{"role": "user", "content": "Ping"}])
 
     with pytest.raises(ProviderUnavailableError):
         await adapter.chat_completions(request)
+
+
+@pytest.mark.asyncio
+async def test_validate_api_key_removes_models_prefix(monkeypatch, provider_model):
+    adapter = GeminiProvider(provider_model)
+    recorder: dict = {}
+    fake_http = FakeResponse(200, {"candidates": []})
+
+    monkeypatch.setattr("app.providers.gemini.httpx.AsyncClient", _stub_async_client(fake_http, recorder))
+
+    await adapter.validate_api_key("test-key")
+
+    assert (
+        recorder["url"]
+        == "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+    )
+    assert recorder["headers"]["x-goog-api-key"] == "test-key"
+    payload = recorder["json"]
+    assert payload["contents"][0]["parts"][0]["text"] == "healthcheck"
+    assert payload["generationConfig"]["maxOutputTokens"] == 16

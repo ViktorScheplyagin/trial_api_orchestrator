@@ -75,7 +75,7 @@ CHAT_COMPLETION_EXAMPLES = {
     "gemini": {
         "summary": "Gemini adapter",
         "value": {
-            "model": "gemini-1.5-flash",
+            "model": "gemini-2.5-flash",
             "messages": [
                 {
                     "role": "system",

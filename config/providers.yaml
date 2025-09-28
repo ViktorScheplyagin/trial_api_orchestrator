@@ -1,62 +1,62 @@
 # Provider configuration for Trial API Orchestrator
 providers:
-  - id: cerebras
-    name: Cerebras Inference API
-    priority: 10
-    base_url: "https://api.cerebras.ai"
-    chat_completions_path: "/v1/chat/completions"
-    availability:
-      cooldown_seconds: 300
-    credentials:
-      type: sqlite
-      key_ref: cerebras_api_key
-    models:
-      default: "cerebras-gpt-4o-mini"
-  - id: cohere
-    name: Cohere
-    priority: 20
-    base_url: "https://api.cohere.com"
-    chat_completions_path: "/v2/chat"
-    availability:
-      cooldown_seconds: 300
-    credentials:
-      type: sqlite
-      key_ref: cohere_api_key
-    models:
-      default: "command-r-plus"
-  - id: gemini
-    name: Gemini API
-    priority: 25
-    base_url: "https://generativelanguage.googleapis.com"
-    chat_completions_path: "/v1beta/models/{model}:generateContent"
-    availability:
-      cooldown_seconds: 300
-    credentials:
-      type: sqlite
-      key_ref: gemini_api_key
-    models:
-      default: "models/gemini-1.5-flash-latest"
-  - id: openrouter
-    name: OpenRouter
-    priority: 30
-    base_url: "https://openrouter.ai/api"
-    chat_completions_path: "/v1/chat/completions"
-    availability:
-      cooldown_seconds: 300
-    credentials:
-      type: sqlite
-      key_ref: openrouter_api_key
-    models:
-      default: "openrouter/auto"
-  - id: huggingface
-    name: Hugging Face Inference API
-    priority: 40
-    base_url: "https://api-inference.huggingface.co"
-    chat_completions_path: "/models/{model_id}/chat/completions"
-    availability:
-      cooldown_seconds: 300
-    credentials:
-      type: sqlite
-      key_ref: huggingface_api_token
-    models:
-      default: "HuggingFaceH4/zephyr-7b-beta"
+    - id: cerebras
+      name: Cerebras Inference API
+      priority: 10
+      base_url: "https://api.cerebras.ai"
+      chat_completions_path: "/v1/chat/completions"
+      availability:
+          cooldown_seconds: 300
+      credentials:
+          type: sqlite
+          key_ref: cerebras_api_key
+      models:
+          default: "gpt-oss-120"
+    - id: cohere
+      name: Cohere
+      priority: 20
+      base_url: "https://api.cohere.com"
+      chat_completions_path: "/v2/chat"
+      availability:
+          cooldown_seconds: 300
+      credentials:
+          type: sqlite
+          key_ref: cohere_api_key
+      models:
+          default: "command-r-plus-08-2024"
+    - id: gemini
+      name: Gemini API
+      priority: 25
+      base_url: "https://generativelanguage.googleapis.com"
+      chat_completions_path: "/v1beta/models/{model}:generateContent"
+      availability:
+          cooldown_seconds: 300
+      credentials:
+          type: sqlite
+          key_ref: gemini_api_key
+      models:
+          default: "gemini-2.5-flash"
+    - id: openrouter
+      name: OpenRouter
+      priority: 30
+      base_url: "https://openrouter.ai/api"
+      chat_completions_path: "/v1/chat/completions"
+      availability:
+          cooldown_seconds: 300
+      credentials:
+          type: sqlite
+          key_ref: openrouter_api_key
+      models:
+          default: "deepseek/deepseek-chat-v3.1:free"
+    - id: huggingface
+      name: Hugging Face Inference API
+      priority: 40
+      base_url: "https://api-inference.huggingface.co"
+      chat_completions_path: "/models/{model_id}/chat/completions"
+      availability:
+          cooldown_seconds: 300
+      credentials:
+          type: sqlite
+          key_ref: huggingface_api_token
+      models:
+          default: "HuggingFaceH4/zephyr-7b-beta"

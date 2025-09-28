@@ -27,7 +27,7 @@ OpenRouter acts as a unified gateway to multiple LLM providers. Its API closely 
 
 * **POST /api/v1/chat/completions**  
   Main method to generate chat responses. Request JSON includes:  
-  - `model` — model name or qualified provider:model string (e.g. `"deepseek/deepseek-r1"` or `"openrouter/auto"`)  
+  - `model` — model name or qualified provider:model string (e.g. `"deepseek/deepseek-chat-v3.1:free"` or `"openrouter/auto"`)  
   - `messages` — list of message objects (with `role` and `content`)  
   - Other tuning parameters: `temperature`, `max_tokens`, `top_p`, `frequency_penalty`, `presence_penalty`, etc.  
   **Notes / Features**:  

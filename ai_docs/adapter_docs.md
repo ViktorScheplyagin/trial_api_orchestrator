@@ -191,7 +191,7 @@ providers:
       type: sqlite
       key_ref: openrouter_api_key
     models:
-      default: "openrouter/auto"
+      default: "deepseek/deepseek-chat-v3.1:free"
 ```
 
 Notes:
@@ -323,7 +323,7 @@ Example request (replace model and content appropriately):
 curl -sS -X POST http://localhost:3001/v1/chat/completions \
   -H 'Content-Type: application/json' \
   -d '{
-        "model": "openrouter/auto",
+        "model": "deepseek/deepseek-chat-v3.1:free",
         "messages": [{"role": "user", "content": "Hello!"}],
         "max_tokens": 16
       }'

@@ -40,7 +40,7 @@ class GeminiProvider(ProviderAdapter):
         request = ChatCompletionRequest(
             model=model,
             messages=[{"role": "user", "content": "healthcheck"}],
-            max_tokens=1,
+            max_tokens=16,
         )
         payload = self._build_payload(request)
         await self._post_chat(request.model, payload, api_key, track_errors=False)
@@ -203,13 +203,60 @@ class GeminiProvider(ProviderAdapter):
         if response.status_code in {402, 403, 429}:
             if track_errors:
                 credentials.record_error(self.provider_id, "rate_limit")
-            raise ProviderUnavailableError(self.provider_id, message="Provider quota exhausted")
+            detail = self._extract_error_detail(response)
+            message = "Provider quota exhausted"
+            if detail:
+                message = f"{message}: {detail}"
+            raise ProviderUnavailableError(self.provider_id, message=message)
         if response.is_error:
             if track_errors:
                 credentials.record_error(self.provider_id, f"http_{response.status_code}")
-            raise ProviderUnavailableError(self.provider_id, message="Provider error")
+            detail = self._extract_error_detail(response)
+            message = "Provider error"
+            if detail:
+                message = f"{message}: {detail}"
+            raise ProviderUnavailableError(self.provider_id, message=message)
 
         if track_errors:
             credentials.clear_error(self.provider_id)
 
         return response.json()
+
+    def _extract_error_detail(self, response: httpx.Response) -> str | None:
+        """Return a trimmed provider error detail, if available."""
+
+        detail: str | None = None
+        try:
+            data = response.json()
+        except ValueError:
+            text_summary = (response.text or "").strip()
+            if text_summary:
+                detail = text_summary
+        else:
+            if isinstance(data, dict):
+                error_obj = data.get("error")
+                if isinstance(error_obj, dict):
+                    status = error_obj.get("status")
+                    message = error_obj.get("message")
+                    parts = [
+                        part.strip()
+                        for part in (status, message)
+                        if isinstance(part, str) and part.strip()
+                    ]
+                    if parts:
+                        detail = " - ".join(parts)
+                    elif error_obj:
+                        detail = str(error_obj)
+                elif isinstance(data.get("message"), str):
+                    detail = data["message"]
+                elif data:
+                    detail = str(data)
+            elif data:
+                detail = str(data)
+
+        if detail:
+            compact = " ".join(detail.split())
+            if len(compact) > 300:
+                compact = f"{compact[:297]}..."
+            return compact
+        return None
