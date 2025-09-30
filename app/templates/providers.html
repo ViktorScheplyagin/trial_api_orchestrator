@@ -59,56 +59,205 @@
         </table>
 
         <section class="events">
-            <h2>Recent Events</h2>
+            <div class="events-header">
+                <h2>Recent Events</h2>
+                <button type="button" id="refresh-events" class="secondary">Refresh</button>
+            </div>
+            <div id="events-status" class="events-status" role="status" aria-live="polite"></div>
+            <div id="events-content">
             {% if events %}
-            <table class="events-table">
-                <thead>
-                    <tr>
-                        <th>Timestamp</th>
-                        <th>Kind</th>
-                        <th>Providers</th>
-                        <th>Level</th>
-                        <th>Message</th>
-                    </tr>
-                </thead>
-                <tbody>
-                {% for event in events %}
-                    <tr>
-                        <td class="timestamp">{{ event.timestamp or "-" }}</td>
-                        <td>{{ event.kind }}</td>
-                        <td>
-                            {% if event.provider_from and event.provider_to %}
-                                {{ event.provider_from }} → {{ event.provider_to }}
-                            {% elif event.provider_from %}
-                                {{ event.provider_from }}
-                            {% else %}
-                                —
-                            {% endif %}
-                        </td>
-                        <td>{{ event.level }}</td>
-                        <td>
-                            <div class="message">{{ event.message or "" }}</div>
-                            {% if event.model %}
-                            <div class="meta">Model: {{ event.model }}</div>
-                            {% endif %}
-                            {% if event.error_code %}
-                            <div class="meta">Error: {{ event.error_code }}</div>
-                            {% endif %}
-                            {% if event.meta %}
-                            <div class="meta">Meta: {{ event.meta }}</div>
-                            {% endif %}
-                        </td>
-                    </tr>
-                {% endfor %}
-                </tbody>
-            </table>
+                <table class="events-table">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Kind</th>
+                            <th>Providers</th>
+                            <th>Level</th>
+                            <th>Message</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for event in events %}
+                        <tr>
+                            <td class="timestamp">{{ event.timestamp or "-" }}</td>
+                            <td>{{ event.kind }}</td>
+                            <td>
+                                {% if event.provider_from and event.provider_to %}
+                                    {{ event.provider_from }} → {{ event.provider_to }}
+                                {% elif event.provider_from %}
+                                    {{ event.provider_from }}
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+                            <td>{{ event.level }}</td>
+                            <td>
+                                <div class="message">{{ event.message or "" }}</div>
+                                {% if event.model %}
+                                <div class="meta">Model: {{ event.model }}</div>
+                                {% endif %}
+                                {% if event.error_code %}
+                                <div class="meta">Error: {{ event.error_code }}</div>
+                                {% endif %}
+                                {% if event.meta %}
+                                <div class="meta">Meta: {{ event.meta }}</div>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
             {% else %}
-            <p class="empty">No events recorded yet.</p>
+                <p class="empty">No events recorded yet.</p>
             {% endif %}
+            </div>
         </section>
     </main>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
+            var refreshButton = document.getElementById('refresh-events');
+            var eventsContent = document.getElementById('events-content');
+            var eventsStatus = document.getElementById('events-status');
+
+            function renderEvents(events) {
+                if (!eventsContent) {
+                    return;
+                }
+
+                eventsContent.innerHTML = '';
+
+                if (!events || events.length === 0) {
+                    var emptyMessage = document.createElement('p');
+                    emptyMessage.className = 'empty';
+                    emptyMessage.textContent = 'No events recorded yet.';
+                    eventsContent.appendChild(emptyMessage);
+                    return;
+                }
+
+                var table = document.createElement('table');
+                table.className = 'events-table';
+
+                var thead = document.createElement('thead');
+                var headerRow = document.createElement('tr');
+                ['Timestamp', 'Kind', 'Providers', 'Level', 'Message'].forEach(function (label) {
+                    var th = document.createElement('th');
+                    th.textContent = label;
+                    headerRow.appendChild(th);
+                });
+                thead.appendChild(headerRow);
+                table.appendChild(thead);
+
+                var tbody = document.createElement('tbody');
+
+                events.forEach(function (event) {
+                    var row = document.createElement('tr');
+
+                    var timestampCell = document.createElement('td');
+                    timestampCell.className = 'timestamp';
+                    timestampCell.textContent = event.timestamp || '-';
+                    row.appendChild(timestampCell);
+
+                    var kindCell = document.createElement('td');
+                    kindCell.textContent = event.kind || '';
+                    row.appendChild(kindCell);
+
+                    var providersCell = document.createElement('td');
+                    if (event.provider_from && event.provider_to) {
+                        providersCell.textContent = event.provider_from + ' → ' + event.provider_to;
+                    } else if (event.provider_from) {
+                        providersCell.textContent = event.provider_from;
+                    } else {
+                        providersCell.textContent = '—';
+                    }
+                    row.appendChild(providersCell);
+
+                    var levelCell = document.createElement('td');
+                    levelCell.textContent = event.level || '';
+                    row.appendChild(levelCell);
+
+                    var messageCell = document.createElement('td');
+                    var messageDiv = document.createElement('div');
+                    messageDiv.className = 'message';
+                    messageDiv.textContent = event.message || '';
+                    messageCell.appendChild(messageDiv);
+
+                    if (event.model) {
+                        var modelDiv = document.createElement('div');
+                        modelDiv.className = 'meta';
+                        modelDiv.textContent = 'Model: ' + event.model;
+                        messageCell.appendChild(modelDiv);
+                    }
+
+                    if (event.error_code) {
+                        var errorDiv = document.createElement('div');
+                        errorDiv.className = 'meta';
+                        errorDiv.textContent = 'Error: ' + event.error_code;
+                        messageCell.appendChild(errorDiv);
+                    }
+
+                    if (event.meta) {
+                        var metaDiv = document.createElement('div');
+                        metaDiv.className = 'meta';
+                        if (typeof event.meta === 'object' && event.meta !== null) {
+                            try {
+                                metaDiv.textContent = 'Meta: ' + JSON.stringify(event.meta);
+                            } catch (err) {
+                                metaDiv.textContent = 'Meta: [unserializable]';
+                            }
+                        } else {
+                            metaDiv.textContent = 'Meta: ' + event.meta;
+                        }
+                        messageCell.appendChild(metaDiv);
+                    }
+
+                    row.appendChild(messageCell);
+                    tbody.appendChild(row);
+                });
+
+                table.appendChild(tbody);
+                eventsContent.appendChild(table);
+            }
+
+            if (refreshButton && eventsContent) {
+                refreshButton.addEventListener('click', function () {
+                    var originalLabel = refreshButton.textContent;
+                    refreshButton.disabled = true;
+                    refreshButton.textContent = 'Refreshing...';
+                    if (eventsStatus) {
+                        eventsStatus.textContent = '';
+                    }
+
+                    fetch('/admin/events?limit=25', {
+                        headers: {
+                            'Accept': 'application/json'
+                        }
+                    })
+                        .then(function (response) {
+                            if (!response.ok) {
+                                throw new Error('Failed to fetch events');
+                            }
+                            return response.json();
+                        })
+                        .then(function (data) {
+                            var events = (data && data.events) || [];
+                            renderEvents(events);
+                            if (eventsStatus) {
+                                var now = new Date();
+                                eventsStatus.textContent = 'Updated at ' + now.toLocaleTimeString();
+                            }
+                        })
+                        .catch(function () {
+                            if (eventsStatus) {
+                                eventsStatus.textContent = 'Failed to refresh events.';
+                            }
+                        })
+                        .finally(function () {
+                            refreshButton.disabled = false;
+                            refreshButton.textContent = originalLabel;
+                        });
+                });
+            }
+
             document.querySelectorAll('form[data-healthcheck-form]').forEach(function (form) {
                 form.addEventListener('submit', function () {
                     var button = form.querySelector('button');

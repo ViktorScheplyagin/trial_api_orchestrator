@@ -20,6 +20,7 @@ from app.storage.credentials import (
     upsert_api_key,
 )
 from app.storage.models import ProviderCredential
+from app.telemetry.events import list_recent_events
 
 router = APIRouter(prefix="/admin")
 
@@ -56,6 +57,14 @@ def list_providers() -> dict:
             }
         )
     return {"providers": data}
+
+
+@router.get("/events")
+def list_events(limit: int = 25) -> dict:
+    """Return recent orchestrator events for the admin dashboard."""
+    limit_value = max(1, min(limit, 100))
+    events = list_recent_events(limit=limit_value)
+    return {"events": events}
 
 
 @router.post("/providers/{provider_id}/credentials")
