@@ -45,7 +45,7 @@
                         </form>
                         {% endif %}
                         {% if state.has_api_key %}
-                        <form method="post" action="/admin/providers/{{ state.provider.id }}/healthcheck" class="inline-form">
+                        <form method="post" action="/admin/providers/{{ state.provider.id }}/healthcheck" class="inline-form" data-healthcheck-form>
                             <button type="submit" class="secondary">Healthcheck</button>
                         </form>
                         <form method="post" action="/admin/providers/{{ state.provider.id }}/credentials/delete" class="inline-form">
@@ -107,5 +107,20 @@
             {% endif %}
         </section>
     </main>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('form[data-healthcheck-form]').forEach(function (form) {
+                form.addEventListener('submit', function () {
+                    var button = form.querySelector('button');
+                    if (!button) {
+                        return;
+                    }
+                    button.disabled = true;
+                    button.dataset.originalLabel = button.textContent;
+                    button.textContent = 'Loading...';
+                });
+            });
+        });
+    </script>
 </body>
 </html>
