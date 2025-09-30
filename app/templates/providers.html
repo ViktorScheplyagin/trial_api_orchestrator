@@ -39,9 +39,10 @@
                     </td>
                     <td>
                         {% if not state.has_api_key %}
-                        <form method="post" action="/admin/providers/{{ state.provider.id }}/credentials" class="inline-form">
+                        <form method="post" action="/admin/providers/{{ state.provider.id }}/credentials" class="inline-form" data-save-form>
                             <input type="password" name="api_key" placeholder="API key" value="" required>
                             <button type="submit">Save</button>
+                            <div class="form-status" data-save-status aria-live="polite"></div>
                         </form>
                         {% endif %}
                         {% if state.has_api_key %}
@@ -267,6 +268,81 @@
                     button.disabled = true;
                     button.dataset.originalLabel = button.textContent;
                     button.textContent = 'Loading...';
+                });
+            });
+
+            document.querySelectorAll('form[data-save-form]').forEach(function (form) {
+                var statusElement = form.querySelector('[data-save-status]');
+
+                form.addEventListener('submit', function (event) {
+                    event.preventDefault();
+
+                    var button = form.querySelector('button[type="submit"]');
+                    if (!button || button.dataset.loading === 'true') {
+                        return;
+                    }
+
+                    if (statusElement) {
+                        statusElement.textContent = '';
+                    }
+
+                    button.dataset.loading = 'true';
+                    button.dataset.originalLabel = button.textContent;
+                    button.disabled = true;
+                    button.textContent = 'Loading...';
+
+                    var formData = new FormData(form);
+
+                    // Submit via fetch so we can control the loading state lifecycle.
+                    fetch(form.action, {
+                        method: (form.method || 'post').toUpperCase(),
+                        body: formData,
+                        credentials: 'same-origin',
+                    })
+                        .then(function (response) {
+                            if (response.redirected) {
+                                window.location.href = response.url;
+                                return null;
+                            }
+
+                            if (!response.ok) {
+                                var contentType = response.headers.get('content-type') || '';
+                                if (contentType.indexOf('application/json') !== -1) {
+                                    return response.json().then(function (data) {
+                                        var detail = (data && (data.detail || data.message)) || 'Failed to save API key.';
+                                        throw new Error(detail);
+                                    });
+                                }
+                                throw new Error('Failed to save API key.');
+                            }
+
+                            var contentType = response.headers.get('content-type') || '';
+                            if (contentType.indexOf('application/json') !== -1) {
+                                return response.json().then(function (data) {
+                                    if (data && data.status === 'ok') {
+                                        window.location.reload();
+                                        return null;
+                                    }
+                                    throw new Error('Unexpected response.');
+                                });
+                            }
+
+                            window.location.reload();
+                            return null;
+                        })
+                        .catch(function (error) {
+                            if (statusElement) {
+                                statusElement.textContent = error.message || 'Failed to save API key.';
+                            } else {
+                                console.error('Failed to save API key:', error);
+                            }
+                        })
+                        .finally(function () {
+                            button.disabled = false;
+                            button.textContent = button.dataset.originalLabel || 'Save';
+                            delete button.dataset.originalLabel;
+                            delete button.dataset.loading;
+                        });
                 });
             });
         });

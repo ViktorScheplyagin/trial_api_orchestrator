@@ -44,7 +44,7 @@ class CerebrasProvider(ProviderAdapter):
         request = ChatCompletionRequest(
             model=model,
             messages=[{"role": "user", "content": "healthcheck"}],
-            max_tokens=1,
+            max_tokens=16,
         )
         payload = self._build_payload(request)
         await self._post_chat(payload, api_key, track_errors=False)

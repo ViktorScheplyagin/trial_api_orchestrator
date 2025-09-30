@@ -20,7 +20,7 @@ from app.storage.credentials import (
     upsert_api_key,
 )
 from app.storage.models import ProviderCredential
-from app.telemetry.events import list_recent_events
+from app.telemetry.events import list_recent_events, record_event
 
 router = APIRouter(prefix="/admin")
 
@@ -90,11 +90,32 @@ async def set_provider_key(
         await adapter.validate_api_key(api_key_value)
     except AuthenticationRequiredError as exc:
         record_error(provider_id, "auth")
+        record_event(
+            "provider_credentials_invalid",
+            "WARNING",
+            provider_from=provider_id,
+            message="Credential validation failed: invalid API key",
+            meta={"source": "admin_credentials"},
+        )
         raise HTTPException(status_code=400, detail="Invalid API key") from exc
     except ProviderUnavailableError as exc:
+        record_event(
+            "provider_health_fail",
+            "WARNING",
+            provider_from=provider_id,
+            message=exc.message,
+            meta={"source": "admin_credentials"},
+        )
         raise HTTPException(status_code=503, detail=f"Provider health check failed: {exc.message}") from exc
 
     upsert_api_key(provider_id, api_key_value)
+    record_event(
+        "provider_credentials_updated",
+        "INFO",
+        provider_from=provider_id,
+        message="API key saved via admin",
+        meta={"source": "admin_credentials"},
+    )
     if api_key is not None:
         return RedirectResponse(url="/", status_code=303)
     return JSONResponse({"status": "ok"})
@@ -116,12 +137,33 @@ async def healthcheck_provider(provider_id: str) -> Response:
         await adapter.validate_api_key(api_key_value)
     except AuthenticationRequiredError as exc:
         record_error(provider_id, "auth")
+        record_event(
+            "provider_health_fail",
+            "WARNING",
+            provider_from=provider_id,
+            message="Health check failed: invalid API key",
+            meta={"source": "admin_healthcheck"},
+        )
         raise HTTPException(status_code=400, detail="Invalid API key") from exc
     except ProviderUnavailableError as exc:
         record_error(provider_id, exc.message or "provider_unavailable")
+        record_event(
+            "provider_health_fail",
+            "WARNING",
+            provider_from=provider_id,
+            message=exc.message,
+            meta={"source": "admin_healthcheck"},
+        )
         raise HTTPException(status_code=503, detail=f"Provider health check failed: {exc.message}") from exc
 
     clear_error(provider_id)
+    record_event(
+        "provider_health_ok",
+        "INFO",
+        provider_from=provider_id,
+        message="Health check succeeded",
+        meta={"source": "admin_healthcheck"},
+    )
     return RedirectResponse(url="/", status_code=303)
 
 

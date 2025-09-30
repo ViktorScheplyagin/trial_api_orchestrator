@@ -11,7 +11,7 @@ providers:
           type: sqlite
           key_ref: cerebras_api_key
       models:
-          default: "gpt-oss-120"
+          default: "gpt-oss-120b"
     - id: cohere
       name: Cohere
       priority: 20
