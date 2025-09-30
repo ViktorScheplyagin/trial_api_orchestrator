@@ -80,7 +80,7 @@
                     <tbody>
                     {% for event in events %}
                         <tr>
-                            <td class="timestamp">{{ event.timestamp or "-" }}</td>
+                            <td class="timestamp" data-raw="{{ event.timestamp|default('', true) }}">{{ event.timestamp or "-" }}</td>
                             <td>{{ event.kind }}</td>
                             <td>
                                 {% if event.provider_from and event.provider_to %}
@@ -120,6 +120,34 @@
             var eventsContent = document.getElementById('events-content');
             var eventsStatus = document.getElementById('events-status');
 
+            function formatTimestamp(value) {
+                if (!value) {
+                    return '-';
+                }
+
+                var date = new Date(value);
+                if (isNaN(date.getTime())) {
+                    return value;
+                }
+
+                return date.toLocaleString(undefined, {
+                    year: 'numeric',
+                    month: 'short',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                });
+            }
+
+            function applyHumanReadableTimestamps(scope) {
+                var root = scope || document;
+                root.querySelectorAll('.timestamp').forEach(function (cell) {
+                    var rawValue = cell.dataset.raw || cell.textContent;
+                    cell.textContent = formatTimestamp(rawValue);
+                });
+            }
+
             function renderEvents(events) {
                 if (!eventsContent) {
                     return;
@@ -155,7 +183,8 @@
 
                     var timestampCell = document.createElement('td');
                     timestampCell.className = 'timestamp';
-                    timestampCell.textContent = event.timestamp || '-';
+                    timestampCell.dataset.raw = event.timestamp || '';
+                    timestampCell.textContent = formatTimestamp(event.timestamp);
                     row.appendChild(timestampCell);
 
                     var kindCell = document.createElement('td');
@@ -217,6 +246,7 @@
 
                 table.appendChild(tbody);
                 eventsContent.appendChild(table);
+                applyHumanReadableTimestamps(table);
             }
 
             if (refreshButton && eventsContent) {
@@ -258,6 +288,8 @@
                         });
                 });
             }
+
+            applyHumanReadableTimestamps();
 
             document.querySelectorAll('form[data-healthcheck-form]').forEach(function (form) {
                 form.addEventListener('submit', function () {
