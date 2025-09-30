@@ -1,0 +1,87 @@
+from __future__ import annotations
+
+from contextlib import contextmanager
+from datetime import datetime, timedelta, timezone
+
+import pytest
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import sessionmaker
+
+from app.storage.database import Base
+from app.storage.models import OrchestratorEvent
+from app.telemetry import events
+
+
+@pytest.fixture(autouse=True)
+def in_memory_db(monkeypatch):
+    """Provide an isolated in-memory database for telemetry tests."""
+
+    engine = create_engine("sqlite:///:memory:", future=True)
+    TestingSession = sessionmaker(
+        bind=engine,
+        autoflush=False,
+        autocommit=False,
+        expire_on_commit=False,
+        future=True,
+    )
+    Base.metadata.create_all(engine)
+
+    @contextmanager
+    def session_scope():
+        session = TestingSession()
+        try:
+            yield session
+            session.commit()
+        except Exception:  # pragma: no cover - defensive
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+    monkeypatch.setattr(events, "session_scope", session_scope)
+    yield
+
+
+def _add_event(ts: datetime, level: str = "INFO", kind: str = "test_event") -> None:
+    with events.session_scope() as session:
+        session.add(
+            OrchestratorEvent(
+                ts=ts,
+                level=level,
+                kind=kind,
+            )
+        )
+
+
+def test_record_event_prunes_events_older_than_yesterday():
+    threshold = datetime.now(timezone.utc)
+
+    _add_event(threshold - timedelta(days=3))
+    _add_event(threshold - timedelta(days=1))
+
+    events.record_event("provider_test", "INFO", message="kept")
+
+    with events.session_scope() as session:
+        rows = session.scalars(select(OrchestratorEvent).order_by(OrchestratorEvent.ts)).all()
+
+    assert len(rows) == 2
+    assert all(row.ts is not None for row in rows)
+    assert rows[0].ts >= events._current_retention_cutoff()
+
+
+def test_list_recent_events_returns_only_retained_records():
+    now = datetime.now(timezone.utc)
+
+    _add_event(now - timedelta(days=4))
+    _add_event(now - timedelta(days=2))
+    recent = now - timedelta(hours=6)
+    _add_event(recent)
+
+    # Trigger pruning and retrieval.
+    data = events.list_recent_events(limit=10)
+
+    assert len(data) == 2
+    assert all(
+        datetime.fromisoformat(item["timestamp"]) >= events._current_retention_cutoff()
+        for item in data
+    )

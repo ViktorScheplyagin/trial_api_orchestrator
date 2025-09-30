@@ -5,10 +5,10 @@ from __future__ import annotations
 import json
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.logging import get_request_id
 from app.storage.database import session_scope
@@ -17,6 +17,24 @@ from app.storage.models import OrchestratorEvent
 logger = logging.getLogger("orchestrator.events")
 
 _EVENTS_ENABLED = os.getenv("EVENTS_ENABLED", "true").lower() in {"1", "true", "yes"}
+
+
+_RETENTION_DAYS = 2  # keep today + yesterday
+
+
+def _current_retention_cutoff() -> datetime:
+    """Return the UTC timestamp cutoff for events to retain."""
+    now_utc = datetime.now(timezone.utc)
+    start_of_today = datetime(now_utc.year, now_utc.month, now_utc.day, tzinfo=timezone.utc)
+    return start_of_today - timedelta(days=_RETENTION_DAYS - 1)
+
+
+def _prune_old_events(session) -> None:
+    """Remove events older than the retention window."""
+    cutoff = _current_retention_cutoff()
+    session.execute(
+        delete(OrchestratorEvent).where(OrchestratorEvent.ts < cutoff)
+    )
 
 
 def record_event(
@@ -48,6 +66,7 @@ def record_event(
     try:
         with session_scope() as session:
             session.add(event)
+            _prune_old_events(session)
     except Exception:
         logger.exception(
             "Failed to record event", extra={"event": "event_persist_error", "kind": kind}
@@ -59,9 +78,14 @@ def list_recent_events(limit: int = 50) -> List[Dict[str, Any]]:
     if not _EVENTS_ENABLED:
         return []
 
+    cutoff = _current_retention_cutoff()
+
     with session_scope() as session:
+        _prune_old_events(session)
+
         stmt = (
             select(OrchestratorEvent)
+            .where(OrchestratorEvent.ts >= cutoff)
             .order_by(OrchestratorEvent.ts.desc())
             .limit(limit)
         )
