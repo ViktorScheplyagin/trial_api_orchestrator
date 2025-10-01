@@ -90,3 +90,7 @@ Document the autonomous agents participating in the trial API orchestrator. Upda
 
 ## Architecture & File Structure
 - For a complete overview of the project architecture, module responsibilities, request lifecycles, and file layout, see [ai_docs/architecture.md](ai_docs/architecture.md).
+
+## Quality Assurance
+- After each implementation, run tests and linters.
+- After every feature implementation, execute `make check` so the QA suite (formatting checks, linting, type checks, and tests) runs before handoff.
