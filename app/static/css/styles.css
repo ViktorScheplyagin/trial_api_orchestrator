@@ -70,6 +70,10 @@ html[data-theme="dark"] {
     color-scheme: dark;
 }
 
+html[data-theme="light"] {
+    color-scheme: light;
+}
+
 .container {
     max-width: 960px;
     margin: 40px auto;

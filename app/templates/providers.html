@@ -7,7 +7,12 @@
 </head>
 <body>
     <main class="container">
-        <h1>Providers</h1>
+        <div class="toolbar">
+            <h1>Providers</h1>
+            <div class="theme-toggle">
+                <button type="button" id="theme-toggle" class="secondary" aria-pressed="false">Switch to dark mode</button>
+            </div>
+        </div>
         <table>
             <thead>
                 <tr>
@@ -117,9 +122,84 @@
     </main>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
+            var themeToggleButton = document.getElementById('theme-toggle');
             var refreshButton = document.getElementById('refresh-events');
             var eventsContent = document.getElementById('events-content');
             var eventsStatus = document.getElementById('events-status');
+
+            var THEME_STORAGE_KEY = 'trial-api-orchestrator-theme';
+            var currentTheme = null;
+
+            function readStoredTheme() {
+                try {
+                    var value = window.localStorage.getItem(THEME_STORAGE_KEY);
+                    if (value === 'dark' || value === 'light') {
+                        return value;
+                    }
+                } catch (err) {
+                    // localStorage is unavailable (e.g., private browsing)
+                }
+                return null;
+            }
+
+            function persistTheme(theme) {
+                try {
+                    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+                } catch (err) {
+                    // Fall back to session-only theme if storage fails.
+                }
+            }
+
+            function systemPreferredTheme() {
+                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    return 'dark';
+                }
+                return 'light';
+            }
+
+            function applyTheme(theme) {
+                var resolvedTheme = theme === 'dark' ? 'dark' : 'light';
+                currentTheme = resolvedTheme;
+
+                document.documentElement.setAttribute('data-theme', resolvedTheme);
+
+                if (themeToggleButton) {
+                    var nextLabel = resolvedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+                    themeToggleButton.textContent = nextLabel;
+                    themeToggleButton.setAttribute('aria-label', nextLabel);
+                    themeToggleButton.setAttribute('aria-pressed', resolvedTheme === 'dark' ? 'true' : 'false');
+                }
+            }
+
+            var storedTheme = readStoredTheme();
+            var hasStoredTheme = storedTheme !== null;
+
+            applyTheme(storedTheme || systemPreferredTheme());
+
+            if (themeToggleButton) {
+                themeToggleButton.addEventListener('click', function () {
+                    var nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                    applyTheme(nextTheme);
+                    persistTheme(nextTheme);
+                    hasStoredTheme = true;
+                });
+            }
+
+            if (!hasStoredTheme && window.matchMedia) {
+                var themeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+                var handlePreferenceChange = function (event) {
+                    if (hasStoredTheme) {
+                        return;
+                    }
+                    applyTheme(event.matches ? 'dark' : 'light');
+                };
+
+                if (typeof themeMediaQuery.addEventListener === 'function') {
+                    themeMediaQuery.addEventListener('change', handlePreferenceChange);
+                } else if (typeof themeMediaQuery.addListener === 'function') {
+                    themeMediaQuery.addListener(handlePreferenceChange);
+                }
+            }
 
             function formatTimestamp(value) {
                 if (!value) {
