@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Dict
+from http import HTTPStatus
+from typing import Any
 
 import httpx
 
 from app.core.config import ProviderModel
 from app.core.exceptions import AuthenticationRequiredError, ProviderUnavailableError
 from app.storage import credentials
+
 from .base import ChatCompletionRequest, ChatCompletionResponse, ProviderAdapter
 
 
@@ -17,7 +19,7 @@ class OpenRouterProvider(ProviderAdapter):
     provider_id = "openrouter"
 
     def __init__(self, config: ProviderModel) -> None:
-        self._config = config
+        super().__init__(config)
         self._base_url = config.base_url.rstrip("/")
         self._path = config.chat_completions_path
 
@@ -38,7 +40,9 @@ class OpenRouterProvider(ProviderAdapter):
     async def validate_api_key(self, api_key: str) -> None:
         model = self._config.models.get("default")
         if not model:
-            raise ProviderUnavailableError(self.provider_id, message="Health check model not configured")
+            raise ProviderUnavailableError(
+                self.provider_id, message="Health check model not configured"
+            )
 
         request = ChatCompletionRequest(
             model=model,
@@ -48,8 +52,8 @@ class OpenRouterProvider(ProviderAdapter):
         payload = self._build_payload(request)
         await self._post_chat(payload, api_key, track_errors=False)
 
-    def _build_payload(self, request: ChatCompletionRequest) -> Dict[str, Any]:
-        payload: Dict[str, Any] = {
+    def _build_payload(self, request: ChatCompletionRequest) -> dict[str, Any]:
+        payload: dict[str, Any] = {
             "model": request.model,
             "messages": request.messages,
         }
@@ -68,7 +72,9 @@ class OpenRouterProvider(ProviderAdapter):
                 payload[field] = value
         return payload
 
-    async def _post_chat(self, payload: Dict[str, Any], api_key: str, track_errors: bool) -> Dict[str, Any]:
+    async def _post_chat(
+        self, payload: dict[str, Any], api_key: str, track_errors: bool
+    ) -> dict[str, Any]:
         url = f"{self._base_url}{self._path}"
         headers = {
             "Authorization": f"Bearer {api_key}",
@@ -81,13 +87,19 @@ class OpenRouterProvider(ProviderAdapter):
         except httpx.RequestError as exc:
             if track_errors:
                 credentials.record_error(self.provider_id, "network")
-            raise ProviderUnavailableError(self.provider_id, message="Provider request failed") from exc
+            raise ProviderUnavailableError(
+                self.provider_id, message="Provider request failed"
+            ) from exc
 
-        if response.status_code == 401:
+        if response.status_code == HTTPStatus.UNAUTHORIZED:
             if track_errors:
                 credentials.record_error(self.provider_id, "auth")
             raise AuthenticationRequiredError(self.provider_id)
-        if response.status_code in {402, 403, 429}:
+        if response.status_code in {
+            HTTPStatus.PAYMENT_REQUIRED,
+            HTTPStatus.FORBIDDEN,
+            HTTPStatus.TOO_MANY_REQUESTS,
+        }:
             if track_errors:
                 credentials.record_error(self.provider_id, "rate_limit")
             raise ProviderUnavailableError(self.provider_id, message="Provider quota exhausted")
@@ -99,4 +111,7 @@ class OpenRouterProvider(ProviderAdapter):
         if track_errors:
             credentials.clear_error(self.provider_id)
 
-        return response.json()
+        data = response.json()
+        if not isinstance(data, dict):
+            raise ProviderUnavailableError(self.provider_id, message="Unexpected response format")
+        return data

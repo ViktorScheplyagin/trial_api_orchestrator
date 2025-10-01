@@ -1,5 +1,6 @@
 import pathlib
 import sys
+from http import HTTPStatus
 
 import pytest
 
@@ -9,6 +10,13 @@ from app.core.config import ProviderModel
 from app.core.exceptions import AuthenticationRequiredError, ProviderUnavailableError
 from app.providers.base import ChatCompletionRequest
 from app.providers.gemini import GeminiProvider
+
+TEMPERATURE = 0.3
+MAX_OUTPUT_TOKENS = 256
+TOP_P = 0.95
+FREQUENCY_PENALTY = 0.1
+PRESENCE_PENALTY = 0.2
+HEALTHCHECK_MAX_TOKENS = 16
 
 
 class FakeResponse:
@@ -21,7 +29,7 @@ class FakeResponse:
 
     @property
     def is_error(self) -> bool:
-        return self.status_code >= 400
+        return self.status_code >= HTTPStatus.BAD_REQUEST
 
 
 def _stub_async_client(response, recorder):
@@ -78,12 +86,18 @@ async def test_gemini_adapter_success(monkeypatch, provider_model):
             "totalTokenCount": 25,
         },
     }
-    fake_http = FakeResponse(200, response_payload)
+    fake_http = FakeResponse(HTTPStatus.OK, response_payload)
 
     monkeypatch.setattr("app.providers.gemini.credentials.get_api_key", lambda _: "gemini-key")
-    monkeypatch.setattr("app.providers.gemini.credentials.record_error", lambda *args, **kwargs: None)
-    monkeypatch.setattr("app.providers.gemini.credentials.clear_error", lambda *args, **kwargs: None)
-    monkeypatch.setattr("app.providers.gemini.httpx.AsyncClient", _stub_async_client(fake_http, recorder))
+    monkeypatch.setattr(
+        "app.providers.gemini.credentials.record_error", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(
+        "app.providers.gemini.credentials.clear_error", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(
+        "app.providers.gemini.httpx.AsyncClient", _stub_async_client(fake_http, recorder)
+    )
 
     request = ChatCompletionRequest(
         model="models/gemini-2.5-flash",
@@ -92,11 +106,11 @@ async def test_gemini_adapter_success(monkeypatch, provider_model):
             {"role": "user", "content": "Say hi"},
             {"role": "assistant", "content": "Hi there"},
         ],
-        temperature=0.3,
-        max_tokens=256,
-        top_p=0.95,
-        frequency_penalty=0.1,
-        presence_penalty=0.2,
+        temperature=TEMPERATURE,
+        max_tokens=MAX_OUTPUT_TOKENS,
+        top_p=TOP_P,
+        frequency_penalty=FREQUENCY_PENALTY,
+        presence_penalty=PRESENCE_PENALTY,
     )
 
     response = await adapter.chat_completions(request)
@@ -112,11 +126,11 @@ async def test_gemini_adapter_success(monkeypatch, provider_model):
     assert payload["contents"][0]["role"] == "user"
     assert payload["contents"][1]["role"] == "model"
     config = payload["generationConfig"]
-    assert config["temperature"] == 0.3
-    assert config["maxOutputTokens"] == 256
-    assert config["topP"] == 0.95
-    assert config["frequencyPenalty"] == 0.1
-    assert config["presencePenalty"] == 0.2
+    assert config["temperature"] == TEMPERATURE
+    assert config["maxOutputTokens"] == MAX_OUTPUT_TOKENS
+    assert config["topP"] == TOP_P
+    assert config["frequencyPenalty"] == FREQUENCY_PENALTY
+    assert config["presencePenalty"] == PRESENCE_PENALTY
 
     choice = response.choices[0]
     assert choice["message"]["content"] == "Hello from Gemini"
@@ -129,7 +143,9 @@ async def test_gemini_adapter_missing_credentials(monkeypatch, provider_model):
     adapter = GeminiProvider(provider_model)
     monkeypatch.setattr("app.providers.gemini.credentials.get_api_key", lambda _: None)
 
-    request = ChatCompletionRequest(model="models/gemini-2.5-flash", messages=[{"role": "user", "content": "Ping"}])
+    request = ChatCompletionRequest(
+        model="models/gemini-2.5-flash", messages=[{"role": "user", "content": "Ping"}]
+    )
 
     with pytest.raises(AuthenticationRequiredError):
         await adapter.chat_completions(request)
@@ -140,14 +156,22 @@ async def test_gemini_adapter_includes_provider_error_detail(monkeypatch, provid
     adapter = GeminiProvider(provider_model)
     recorder: dict = {}
     payload = {"error": {"status": "PERMISSION_DENIED", "message": "API key invalid."}}
-    fake_http = FakeResponse(403, payload)
+    fake_http = FakeResponse(HTTPStatus.FORBIDDEN, payload)
 
     monkeypatch.setattr("app.providers.gemini.credentials.get_api_key", lambda _: "gemini-key")
-    monkeypatch.setattr("app.providers.gemini.credentials.record_error", lambda *args, **kwargs: None)
-    monkeypatch.setattr("app.providers.gemini.credentials.clear_error", lambda *args, **kwargs: None)
-    monkeypatch.setattr("app.providers.gemini.httpx.AsyncClient", _stub_async_client(fake_http, recorder))
+    monkeypatch.setattr(
+        "app.providers.gemini.credentials.record_error", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(
+        "app.providers.gemini.credentials.clear_error", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(
+        "app.providers.gemini.httpx.AsyncClient", _stub_async_client(fake_http, recorder)
+    )
 
-    request = ChatCompletionRequest(model="models/gemini-2.5-flash", messages=[{"role": "user", "content": "Ping"}])
+    request = ChatCompletionRequest(
+        model="models/gemini-2.5-flash", messages=[{"role": "user", "content": "Ping"}]
+    )
 
     with pytest.raises(ProviderUnavailableError) as excinfo:
         await adapter.chat_completions(request)
@@ -161,13 +185,19 @@ async def test_gemini_adapter_includes_provider_error_detail(monkeypatch, provid
 async def test_gemini_adapter_rate_limited(monkeypatch, provider_model):
     adapter = GeminiProvider(provider_model)
     recorder: dict = {}
-    fake_http = FakeResponse(429)
+    fake_http = FakeResponse(HTTPStatus.TOO_MANY_REQUESTS)
 
     monkeypatch.setattr("app.providers.gemini.credentials.get_api_key", lambda _: "gemini-key")
-    monkeypatch.setattr("app.providers.gemini.credentials.record_error", lambda *args, **kwargs: None)
-    monkeypatch.setattr("app.providers.gemini.httpx.AsyncClient", _stub_async_client(fake_http, recorder))
+    monkeypatch.setattr(
+        "app.providers.gemini.credentials.record_error", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(
+        "app.providers.gemini.httpx.AsyncClient", _stub_async_client(fake_http, recorder)
+    )
 
-    request = ChatCompletionRequest(model="models/gemini-2.5-flash", messages=[{"role": "user", "content": "Ping"}])
+    request = ChatCompletionRequest(
+        model="models/gemini-2.5-flash", messages=[{"role": "user", "content": "Ping"}]
+    )
 
     with pytest.raises(ProviderUnavailableError):
         await adapter.chat_completions(request)
@@ -177,9 +207,11 @@ async def test_gemini_adapter_rate_limited(monkeypatch, provider_model):
 async def test_validate_api_key_removes_models_prefix(monkeypatch, provider_model):
     adapter = GeminiProvider(provider_model)
     recorder: dict = {}
-    fake_http = FakeResponse(200, {"candidates": []})
+    fake_http = FakeResponse(HTTPStatus.OK, {"candidates": []})
 
-    monkeypatch.setattr("app.providers.gemini.httpx.AsyncClient", _stub_async_client(fake_http, recorder))
+    monkeypatch.setattr(
+        "app.providers.gemini.httpx.AsyncClient", _stub_async_client(fake_http, recorder)
+    )
 
     await adapter.validate_api_key("test-key")
 
@@ -190,4 +222,4 @@ async def test_validate_api_key_removes_models_prefix(monkeypatch, provider_mode
     assert recorder["headers"]["x-goog-api-key"] == "test-key"
     payload = recorder["json"]
     assert payload["contents"][0]["parts"][0]["text"] == "healthcheck"
-    assert payload["generationConfig"]["maxOutputTokens"] == 16
+    assert payload["generationConfig"]["maxOutputTokens"] == HEALTHCHECK_MAX_TOKENS

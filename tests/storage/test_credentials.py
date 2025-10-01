@@ -3,12 +3,11 @@ from __future__ import annotations
 from contextlib import contextmanager
 
 import pytest
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import sessionmaker
-
 from app.storage import credentials
 from app.storage.database import Base
 from app.storage.models import ProviderCredential
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import sessionmaker
 
 
 @pytest.fixture(autouse=True)
@@ -36,7 +35,10 @@ def in_memory_db(monkeypatch):
             session.close()
 
     monkeypatch.setattr(credentials, "session_scope", session_scope)
+
     yield
+
+    engine.dispose()
 
 
 def _fetch_credentials(provider_id: str) -> ProviderCredential | None:

@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import json
 import time
-from typing import Any, Dict, List
+from http import HTTPStatus
+from typing import Any
 
 import httpx
 
 from app.core.config import ProviderModel
 from app.core.exceptions import AuthenticationRequiredError, ProviderUnavailableError
 from app.storage import credentials
+
 from .base import ChatCompletionRequest, ChatCompletionResponse, ProviderAdapter
 
 
@@ -18,7 +20,7 @@ class CohereProvider(ProviderAdapter):
     provider_id = "cohere"
 
     def __init__(self, config: ProviderModel) -> None:
-        self._config = config
+        super().__init__(config)
         self._base_url = config.base_url.rstrip("/")
         self._path = config.chat_completions_path
 
@@ -35,7 +37,9 @@ class CohereProvider(ProviderAdapter):
     async def validate_api_key(self, api_key: str) -> None:
         model = self._config.models.get("default")
         if not model:
-            raise ProviderUnavailableError(self.provider_id, message="Health check model not configured")
+            raise ProviderUnavailableError(
+                self.provider_id, message="Health check model not configured"
+            )
 
         request = ChatCompletionRequest(
             model=model,
@@ -45,8 +49,8 @@ class CohereProvider(ProviderAdapter):
         payload = self._build_payload(request)
         await self._post_chat(payload, api_key, track_errors=False)
 
-    def _build_payload(self, request: ChatCompletionRequest) -> Dict[str, Any]:
-        payload: Dict[str, Any] = {
+    def _build_payload(self, request: ChatCompletionRequest) -> dict[str, Any]:
+        payload: dict[str, Any] = {
             "model": request.model,
             "messages": request.messages,
         }
@@ -62,13 +66,15 @@ class CohereProvider(ProviderAdapter):
 
         return payload
 
-    def _normalize_response(self, data: Dict[str, Any], request: ChatCompletionRequest) -> Dict[str, Any]:
+    def _normalize_response(
+        self, data: dict[str, Any], request: ChatCompletionRequest
+    ) -> dict[str, Any]:
         message = data.get("message") or {}
-        content_items: List[Dict[str, Any]] = message.get("content") or []
+        content_items: list[dict[str, Any]] = message.get("content") or []
 
-        text_segments: List[str] = []
-        tool_calls: List[Dict[str, Any]] = []
-        citations: List[Any] = []
+        text_segments: list[str] = []
+        tool_calls: list[dict[str, Any]] = []
+        citations: list[Any] = []
 
         for item in content_items:
             item_type = item.get("type")
@@ -85,7 +91,7 @@ class CohereProvider(ProviderAdapter):
         if not text_segments and data.get("text"):
             text_segments.append(data.get("text", ""))
 
-        assistant_message: Dict[str, Any] = {
+        assistant_message: dict[str, Any] = {
             "role": "assistant",
             "content": "".join(text_segments),
         }
@@ -97,7 +103,7 @@ class CohereProvider(ProviderAdapter):
         if not assistant_message["content"] and not tool_calls:
             assistant_message["content"] = ""
 
-        choice: Dict[str, Any] = {
+        choice: dict[str, Any] = {
             "index": 0,
             "message": assistant_message,
             "finish_reason": data.get("finish_reason")
@@ -108,8 +114,8 @@ class CohereProvider(ProviderAdapter):
 
         usage = self._normalize_usage(data.get("usage"))
 
-        normalized_response: Dict[str, Any] = {
-            "id": data.get("id") or f"chatcmpl-cohere-{int(time.time()*1000)}",
+        normalized_response: dict[str, Any] = {
+            "id": data.get("id") or f"chatcmpl-cohere-{int(time.time() * 1000)}",
             "object": data.get("object") or "chat.completion",
             "created": data.get("created") or int(time.time()),
             "model": data.get("model") or request.model,
@@ -120,9 +126,9 @@ class CohereProvider(ProviderAdapter):
 
         return normalized_response
 
-    def _normalize_tool_call(self, tool: Dict[str, Any]) -> Dict[str, Any] | None:
+    def _normalize_tool_call(self, tool: dict[str, Any]) -> dict[str, Any] | None:
         function = tool.get("function")
-        normalized: Dict[str, Any] = {
+        normalized: dict[str, Any] = {
             "id": tool.get("id") or "",
             "type": tool.get("type") or "function",
         }
@@ -138,7 +144,7 @@ class CohereProvider(ProviderAdapter):
             }
         return normalized
 
-    def _normalize_usage(self, usage: Dict[str, Any] | None) -> Dict[str, Any] | None:
+    def _normalize_usage(self, usage: dict[str, Any] | None) -> dict[str, Any] | None:
         if not usage:
             return None
 
@@ -159,7 +165,7 @@ class CohereProvider(ProviderAdapter):
         if total_tokens is None and prompt_tokens is not None and completion_tokens is not None:
             total_tokens = prompt_tokens + completion_tokens
 
-        result: Dict[str, Any] = {}
+        result: dict[str, Any] = {}
         if prompt_tokens is not None:
             result["prompt_tokens"] = prompt_tokens
         if completion_tokens is not None:
@@ -169,7 +175,9 @@ class CohereProvider(ProviderAdapter):
 
         return result or None
 
-    async def _post_chat(self, payload: Dict[str, Any], api_key: str, track_errors: bool) -> Dict[str, Any]:
+    async def _post_chat(
+        self, payload: dict[str, Any], api_key: str, track_errors: bool
+    ) -> dict[str, Any]:
         url = f"{self._base_url}{self._path}"
         headers = {
             "Authorization": f"Bearer {api_key}",
@@ -182,13 +190,19 @@ class CohereProvider(ProviderAdapter):
         except httpx.RequestError as exc:
             if track_errors:
                 credentials.record_error(self.provider_id, "network")
-            raise ProviderUnavailableError(self.provider_id, message="Provider request failed") from exc
+            raise ProviderUnavailableError(
+                self.provider_id, message="Provider request failed"
+            ) from exc
 
-        if response.status_code == 401:
+        if response.status_code == HTTPStatus.UNAUTHORIZED:
             if track_errors:
                 credentials.record_error(self.provider_id, "auth")
             raise AuthenticationRequiredError(self.provider_id)
-        if response.status_code in {402, 403, 429}:
+        if response.status_code in {
+            HTTPStatus.PAYMENT_REQUIRED,
+            HTTPStatus.FORBIDDEN,
+            HTTPStatus.TOO_MANY_REQUESTS,
+        }:
             if track_errors:
                 credentials.record_error(self.provider_id, "rate_limit")
             raise ProviderUnavailableError(self.provider_id, message="Provider quota exhausted")
@@ -200,4 +214,7 @@ class CohereProvider(ProviderAdapter):
         if track_errors:
             credentials.clear_error(self.provider_id)
 
-        return response.json()
+        data = response.json()
+        if not isinstance(data, dict):
+            raise ProviderUnavailableError(self.provider_id, message="Unexpected response format")
+        return data

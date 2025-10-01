@@ -1,11 +1,12 @@
-import pytest
-from fastapi.testclient import TestClient
+from http import HTTPStatus
 
 import app.main as app_main
+import pytest
 from app.api import openai
 from app.core.exceptions import AuthenticationRequiredError, ProviderUnavailableError
 from app.main import app
 from app.providers.base import ChatCompletionResponse
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture
@@ -50,7 +51,7 @@ def test_create_chat_completion_returns_success(monkeypatch, client):
         json={"model": "demo-model", "messages": [{"role": "user", "content": "hi"}]},
     )
 
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK
     body = response.json()
     assert body["model"] == "demo-model"
     assert body["choices"][0]["message"]["content"] == "ok"
@@ -67,7 +68,7 @@ def test_create_chat_completion_handles_missing_credentials(monkeypatch, client)
         json={"model": "cohere/command", "messages": [{"role": "user", "content": "hi"}]},
     )
 
-    assert response.status_code == 401
+    assert response.status_code == HTTPStatus.UNAUTHORIZED
     body = response.json()
     assert body["error"]["code"] == "provider_auth_required"
     assert "credentials missing" in body["error"]["message"].lower()
@@ -84,7 +85,7 @@ def test_create_chat_completion_handles_provider_unavailable(monkeypatch, client
         json={"model": "openrouter/test", "messages": [{"role": "user", "content": "hi"}]},
     )
 
-    assert response.status_code == 429
+    assert response.status_code == HTTPStatus.TOO_MANY_REQUESTS
     body = response.json()
     assert body["error"]["code"] == "provider_unavailable"
     assert "rate limit" in body["error"]["message"].lower()

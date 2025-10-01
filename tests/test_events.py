@@ -4,12 +4,13 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import sessionmaker
-
 from app.storage.database import Base
 from app.storage.models import OrchestratorEvent
 from app.telemetry import events
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import sessionmaker
+
+EXPECTED_EVENT_COUNT = 2
 
 
 @pytest.fixture(autouse=True)
@@ -39,7 +40,6 @@ def in_memory_db(monkeypatch):
             session.close()
 
     monkeypatch.setattr(events, "session_scope", session_scope)
-    yield
 
 
 def _add_event(ts: datetime, level: str = "INFO", kind: str = "test_event") -> None:
@@ -64,9 +64,13 @@ def test_record_event_prunes_events_older_than_yesterday():
     with events.session_scope() as session:
         rows = session.scalars(select(OrchestratorEvent).order_by(OrchestratorEvent.ts)).all()
 
-    assert len(rows) == 2
+    assert len(rows) == EXPECTED_EVENT_COUNT
     assert all(row.ts is not None for row in rows)
-    assert rows[0].ts >= events._current_retention_cutoff()
+    first_ts = rows[0].ts
+    assert first_ts is not None
+    if first_ts.tzinfo is None:
+        first_ts = first_ts.replace(tzinfo=timezone.utc)
+    assert first_ts >= events._current_retention_cutoff()
 
 
 def test_list_recent_events_returns_only_retained_records():
@@ -80,8 +84,9 @@ def test_list_recent_events_returns_only_retained_records():
     # Trigger pruning and retrieval.
     data = events.list_recent_events(limit=10)
 
-    assert len(data) == 2
-    assert all(
-        datetime.fromisoformat(item["timestamp"]) >= events._current_retention_cutoff()
-        for item in data
-    )
+    assert len(data) == EXPECTED_EVENT_COUNT
+    for item in data:
+        timestamp = datetime.fromisoformat(item["timestamp"])
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+        assert timestamp >= events._current_retention_cutoff()

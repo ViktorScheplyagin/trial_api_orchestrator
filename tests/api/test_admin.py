@@ -1,13 +1,13 @@
 import json
+from http import HTTPStatus
 from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
-
 from app.api import admin
 from app.core.config import AppConfig, ProviderModel
-from app.core.exceptions import AuthenticationRequiredError, ProviderUnavailableError
+from app.core.exceptions import AuthenticationRequiredError
 from app.storage.models import ProviderCredential
+from fastapi import HTTPException
 
 
 def _config() -> AppConfig:
@@ -36,12 +36,18 @@ async def test_set_provider_key_success(monkeypatch):
 
     monkeypatch.setattr(admin, "load_config", _config)
     monkeypatch.setattr(admin, "registry", SimpleNamespace(get_adapter=lambda _: adapter))
-    monkeypatch.setattr(admin, "upsert_api_key", lambda provider_id, api_key: saved_keys.update({provider_id: api_key}))
+    monkeypatch.setattr(
+        admin,
+        "upsert_api_key",
+        lambda provider_id, api_key: saved_keys.update({provider_id: api_key}),
+    )
     monkeypatch.setattr(admin, "record_event", lambda *args, **kwargs: None)
 
-    response = await admin.set_provider_key("demo", api_key=None, api_key_body={"api_key": "secret"})
+    response = await admin.set_provider_key(
+        "demo", api_key=None, api_key_body={"api_key": "secret"}
+    )
 
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK
     payload = json.loads(response.body)
     assert payload == {"status": "ok"}
     assert saved_keys["demo"] == "secret"
@@ -61,12 +67,16 @@ async def test_set_provider_key_invalid(monkeypatch):
     recorded_errors: list[tuple[str, str]] = []
 
     monkeypatch.setattr(admin, "registry", SimpleNamespace(get_adapter=lambda _: adapter))
-    monkeypatch.setattr(admin, "record_error", lambda provider_id, error_code: recorded_errors.append((provider_id, error_code)))
+    monkeypatch.setattr(
+        admin,
+        "record_error",
+        lambda provider_id, error_code: recorded_errors.append((provider_id, error_code)),
+    )
 
     with pytest.raises(HTTPException) as excinfo:
         await admin.set_provider_key("demo", api_key_body={"api_key": "secret"}, api_key=None)
 
-    assert excinfo.value.status_code == 400
+    assert excinfo.value.status_code == HTTPStatus.BAD_REQUEST
     assert recorded_errors == [("demo", "auth")]
 
 

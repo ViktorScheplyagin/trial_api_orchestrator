@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
 
 from pydantic import BaseModel
+
+from app.core.config import ProviderModel
 
 
 class ChatCompletionRequest(BaseModel):
@@ -21,17 +23,20 @@ class ChatCompletionRequest(BaseModel):
 
 class ChatCompletionResponse(BaseModel):
     id: str
-    choices: list[Dict[str, Any]]
+    choices: list[dict[str, Any]]
     created: int
     model: str
     object: str
-    usage: Dict[str, Any] | None = None
+    usage: dict[str, Any] | None = None
 
 
 class ProviderAdapter:
     """Abstract provider adapter."""
 
     provider_id: str
+
+    def __init__(self, config: ProviderModel) -> None:
+        self._config = config
 
     async def chat_completions(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
         raise NotImplementedError

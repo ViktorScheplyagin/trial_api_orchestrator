@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Literal, Optional
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Header
 from fastapi.responses import JSONResponse
@@ -37,7 +37,9 @@ CHAT_COMPLETION_EXAMPLES = {
                 {"role": "system", "content": "You are an orchestrator QA assistant."},
                 {
                     "role": "user",
-                    "content": "List two Cohere-specific response fields we map into OpenAI format.",
+                    "content": (
+                        "List two Cohere-specific response fields we map into OpenAI format."
+                    ),
                 },
             ],
         },
@@ -92,15 +94,13 @@ CHAT_COMPLETION_EXAMPLES = {
 async def create_chat_completion(
     payload: ChatCompletionRequest,
     provider_id: Annotated[
-        Optional[
-            Literal["cerebras", "cohere", "gemini", "openrouter"]
-        ],
+        Literal["cerebras", "cohere", "gemini", "openrouter"] | None,
         Header(
             alias="x-provider-id",
             description="Force routing to a specific provider adapter",
         ),
     ] = None,
-) -> ChatCompletionResponse:
+) -> ChatCompletionResponse | JSONResponse:
     try:
         return await select_provider(payload, provider_id)
     except AuthenticationRequiredError as exc:

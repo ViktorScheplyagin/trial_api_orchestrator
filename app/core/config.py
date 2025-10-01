@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pathlib
 from functools import lru_cache
-from typing import Any, Dict, List
+from typing import Any
 
 import yaml
 from pydantic import BaseModel, Field
@@ -19,13 +19,13 @@ class ProviderModel(BaseModel):
     priority: int = Field(default=100)
     base_url: str
     chat_completions_path: str
-    availability: Dict[str, Any] = Field(default_factory=dict)
-    credentials: Dict[str, Any] = Field(default_factory=dict)
-    models: Dict[str, Any] = Field(default_factory=dict)
+    availability: dict[str, Any] = Field(default_factory=dict)
+    credentials: dict[str, Any] = Field(default_factory=dict)
+    models: dict[str, Any] = Field(default_factory=dict)
 
 
 class AppConfig(BaseModel):
-    providers: List[ProviderModel]
+    providers: list[ProviderModel]
 
 
 @lru_cache(maxsize=1)

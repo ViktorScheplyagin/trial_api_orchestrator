@@ -3,21 +3,25 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Dict, List
+from http import HTTPStatus
+from typing import Any
 
 import httpx
 
 from app.core.config import ProviderModel
 from app.core.exceptions import AuthenticationRequiredError, ProviderUnavailableError
 from app.storage import credentials
+
 from .base import ChatCompletionRequest, ChatCompletionResponse, ProviderAdapter
+
+MAX_ERROR_DETAIL_LENGTH = 300
 
 
 class GeminiProvider(ProviderAdapter):
     provider_id = "gemini"
 
     def __init__(self, config: ProviderModel) -> None:
-        self._config = config
+        super().__init__(config)
         self._base_url = config.base_url.rstrip("/")
         self._path = config.chat_completions_path
 
@@ -35,7 +39,9 @@ class GeminiProvider(ProviderAdapter):
     async def validate_api_key(self, api_key: str) -> None:
         model = self._config.models.get("default")
         if not model:
-            raise ProviderUnavailableError(self.provider_id, message="Health check model not configured")
+            raise ProviderUnavailableError(
+                self.provider_id, message="Health check model not configured"
+            )
 
         request = ChatCompletionRequest(
             model=model,
@@ -45,40 +51,42 @@ class GeminiProvider(ProviderAdapter):
         payload = self._build_payload(request)
         await self._post_chat(request.model, payload, api_key, track_errors=False)
 
-    def _build_payload(self, request: ChatCompletionRequest) -> Dict[str, Any]:
-        contents: List[Dict[str, Any]] = []
-        system_parts: List[Dict[str, str]] = []
+    def _build_payload(self, request: ChatCompletionRequest) -> dict[str, Any]:
+        contents: list[dict[str, Any]] = []
+        system_parts: list[dict[str, str]] = []
 
         for message in request.messages:
-            role = message.get("role")
             text = self._extract_text(message.get("content"))
             if not text:
                 continue
 
+            role = message.get("role")
             if role == "system":
                 system_parts.append({"text": text})
-            elif role == "assistant":
-                contents.append({"role": "model", "parts": [{"text": text}]})
-            else:
-                contents.append({"role": "user", "parts": [{"text": text}]})
+                continue
 
-        payload: Dict[str, Any] = {}
+            mapped_role = "model" if role == "assistant" else "user"
+            contents.append({"role": mapped_role, "parts": [{"text": text}]})
+
+        payload: dict[str, Any] = {}
         if contents:
             payload["contents"] = contents
         if system_parts:
             payload["systemInstruction"] = {"parts": system_parts}
 
-        generation_config: Dict[str, Any] = {}
-        if request.temperature is not None:
-            generation_config["temperature"] = request.temperature
-        if request.max_tokens is not None:
-            generation_config["maxOutputTokens"] = request.max_tokens
-        if request.top_p is not None:
-            generation_config["topP"] = request.top_p
-        if request.frequency_penalty is not None:
-            generation_config["frequencyPenalty"] = request.frequency_penalty
-        if request.presence_penalty is not None:
-            generation_config["presencePenalty"] = request.presence_penalty
+        optional_generation_fields = {
+            "temperature": "temperature",
+            "max_tokens": "maxOutputTokens",
+            "top_p": "topP",
+            "frequency_penalty": "frequencyPenalty",
+            "presence_penalty": "presencePenalty",
+        }
+
+        generation_config = {
+            target: getattr(request, attr)
+            for attr, target in optional_generation_fields.items()
+            if getattr(request, attr) is not None
+        }
 
         if generation_config:
             payload["generationConfig"] = generation_config
@@ -91,7 +99,7 @@ class GeminiProvider(ProviderAdapter):
         if isinstance(content, str):
             return content
         if isinstance(content, list):
-            pieces: List[str] = []
+            pieces: list[str] = []
             for item in content:
                 if isinstance(item, dict):
                     if "text" in item and isinstance(item["text"], str):
@@ -106,10 +114,12 @@ class GeminiProvider(ProviderAdapter):
             return value if isinstance(value, str) else ""
         return str(content)
 
-    def _normalize_response(self, data: Dict[str, Any], request: ChatCompletionRequest) -> Dict[str, Any]:
+    def _normalize_response(
+        self, data: dict[str, Any], request: ChatCompletionRequest
+    ) -> dict[str, Any]:
         candidate = self._select_candidate(data.get("candidates", []))
         text = ""
-        metadata: Dict[str, Any] = {}
+        metadata: dict[str, Any] = {}
         finish_reason = "stop"
 
         if candidate:
@@ -120,24 +130,30 @@ class GeminiProvider(ProviderAdapter):
             safety = candidate.get("safetyRatings")
             if safety:
                 metadata["safetyRatings"] = safety
-            citations = candidate.get("citationMetadata", {}).get("citations") if candidate.get("citationMetadata") else None
+            citations = (
+                candidate.get("citationMetadata", {}).get("citations")
+                if candidate.get("citationMetadata")
+                else None
+            )
             if citations:
                 metadata.setdefault("gemini", {})["citations"] = citations
 
-        message: Dict[str, Any] = {"role": "assistant", "content": text}
+        message: dict[str, Any] = {"role": "assistant", "content": text}
         if metadata:
             message["metadata"] = metadata
 
         choice = {
             "index": 0,
             "message": message,
-            "finish_reason": finish_reason.lower() if isinstance(finish_reason, str) else finish_reason,
+            "finish_reason": finish_reason.lower()
+            if isinstance(finish_reason, str)
+            else finish_reason,
         }
 
         usage = self._normalize_usage(data.get("usageMetadata"))
 
-        normalized_response: Dict[str, Any] = {
-            "id": data.get("id") or f"chatcmpl-gemini-{int(time.time()*1000)}",
+        normalized_response: dict[str, Any] = {
+            "id": data.get("id") or f"chatcmpl-gemini-{int(time.time() * 1000)}",
             "object": data.get("object") or "chat.completion",
             "created": data.get("created") or int(time.time()),
             "model": request.model,
@@ -148,7 +164,7 @@ class GeminiProvider(ProviderAdapter):
 
         return normalized_response
 
-    def _select_candidate(self, candidates: Any) -> Dict[str, Any] | None:
+    def _select_candidate(self, candidates: Any) -> dict[str, Any] | None:
         if not isinstance(candidates, list):
             return None
         for candidate in candidates:
@@ -156,14 +172,14 @@ class GeminiProvider(ProviderAdapter):
                 return candidate
         return None
 
-    def _normalize_usage(self, usage: Dict[str, Any] | None) -> Dict[str, Any] | None:
+    def _normalize_usage(self, usage: dict[str, Any] | None) -> dict[str, Any] | None:
         if not usage or not isinstance(usage, dict):
             return None
         prompt = usage.get("promptTokenCount")
         completion = usage.get("candidatesTokenCount")
         total = usage.get("totalTokenCount")
 
-        result: Dict[str, Any] = {}
+        result: dict[str, Any] = {}
         if isinstance(prompt, int):
             result["prompt_tokens"] = prompt
         if isinstance(completion, int):
@@ -178,11 +194,12 @@ class GeminiProvider(ProviderAdapter):
     async def _post_chat(
         self,
         model: str,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         api_key: str,
         track_errors: bool,
-    ) -> Dict[str, Any]:
-        url = f"{self._base_url}{self._path.format(model=model)}"
+    ) -> dict[str, Any]:
+        model_slug = model.removeprefix("models/")
+        url = f"{self._base_url}{self._path.format(model=model_slug)}"
         headers = {
             "x-goog-api-key": api_key,
             "Content-Type": "application/json",
@@ -194,13 +211,19 @@ class GeminiProvider(ProviderAdapter):
         except httpx.RequestError as exc:
             if track_errors:
                 credentials.record_error(self.provider_id, "network")
-            raise ProviderUnavailableError(self.provider_id, message="Provider request failed") from exc
+            raise ProviderUnavailableError(
+                self.provider_id, message="Provider request failed"
+            ) from exc
 
-        if response.status_code == 401:
+        if response.status_code == HTTPStatus.UNAUTHORIZED:
             if track_errors:
                 credentials.record_error(self.provider_id, "auth")
             raise AuthenticationRequiredError(self.provider_id)
-        if response.status_code in {402, 403, 429}:
+        if response.status_code in {
+            HTTPStatus.PAYMENT_REQUIRED,
+            HTTPStatus.FORBIDDEN,
+            HTTPStatus.TOO_MANY_REQUESTS,
+        }:
             if track_errors:
                 credentials.record_error(self.provider_id, "rate_limit")
             detail = self._extract_error_detail(response)
@@ -220,7 +243,10 @@ class GeminiProvider(ProviderAdapter):
         if track_errors:
             credentials.clear_error(self.provider_id)
 
-        return response.json()
+        data = response.json()
+        if not isinstance(data, dict):
+            raise ProviderUnavailableError(self.provider_id, message="Unexpected response format")
+        return data
 
     def _extract_error_detail(self, response: httpx.Response) -> str | None:
         """Return a trimmed provider error detail, if available."""
@@ -256,7 +282,7 @@ class GeminiProvider(ProviderAdapter):
 
         if detail:
             compact = " ".join(detail.split())
-            if len(compact) > 300:
-                compact = f"{compact[:297]}..."
+            if len(compact) > MAX_ERROR_DETAIL_LENGTH:
+                compact = f"{compact[: MAX_ERROR_DETAIL_LENGTH - 3]}..."
             return compact
         return None

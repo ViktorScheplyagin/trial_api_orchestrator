@@ -1,5 +1,6 @@
 import pathlib
 import sys
+from http import HTTPStatus
 
 import pytest
 
@@ -9,6 +10,12 @@ from app.core.config import ProviderModel
 from app.core.exceptions import AuthenticationRequiredError, ProviderUnavailableError
 from app.providers.base import ChatCompletionRequest
 from app.providers.openrouter import OpenRouterProvider
+
+TEMPERATURE = 0.7
+MAX_TOKENS = 256
+TOP_P = 0.9
+PRESENCE_PENALTY = 0.1
+FREQUENCY_PENALTY = 0.2
 
 
 class FakeResponse:
@@ -21,7 +28,7 @@ class FakeResponse:
 
     @property
     def is_error(self) -> bool:
-        return self.status_code >= 400
+        return self.status_code >= HTTPStatus.BAD_REQUEST
 
 
 def _stub_async_client(response, recorder):
@@ -77,21 +84,27 @@ async def test_openrouter_adapter_success(monkeypatch, provider_model):
         ],
         "usage": {"prompt_tokens": 5, "completion_tokens": 7, "total_tokens": 12},
     }
-    fake_http = FakeResponse(200, response_payload)
+    fake_http = FakeResponse(HTTPStatus.OK, response_payload)
 
     monkeypatch.setattr("app.providers.openrouter.credentials.get_api_key", lambda _: "router-key")
-    monkeypatch.setattr("app.providers.openrouter.credentials.record_error", lambda *args, **kwargs: None)
-    monkeypatch.setattr("app.providers.openrouter.credentials.clear_error", lambda *args, **kwargs: None)
-    monkeypatch.setattr("app.providers.openrouter.httpx.AsyncClient", _stub_async_client(fake_http, recorder))
+    monkeypatch.setattr(
+        "app.providers.openrouter.credentials.record_error", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(
+        "app.providers.openrouter.credentials.clear_error", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(
+        "app.providers.openrouter.httpx.AsyncClient", _stub_async_client(fake_http, recorder)
+    )
 
     request = ChatCompletionRequest(
         model="deepseek/deepseek-chat-v3.1:free",
         messages=[{"role": "user", "content": "Hi"}],
-        temperature=0.7,
-        max_tokens=256,
-        top_p=0.9,
-        presence_penalty=0.1,
-        frequency_penalty=0.2,
+        temperature=TEMPERATURE,
+        max_tokens=MAX_TOKENS,
+        top_p=TOP_P,
+        presence_penalty=PRESENCE_PENALTY,
+        frequency_penalty=FREQUENCY_PENALTY,
         user="abc123",
     )
 
@@ -99,8 +112,8 @@ async def test_openrouter_adapter_success(monkeypatch, provider_model):
 
     assert recorder["url"] == "https://openrouter.ai/api/v1/chat/completions"
     assert recorder["headers"]["Authorization"] == "Bearer router-key"
-    assert recorder["json"]["temperature"] == 0.7
-    assert recorder["json"]["presence_penalty"] == 0.1
+    assert recorder["json"]["temperature"] == TEMPERATURE
+    assert recorder["json"]["presence_penalty"] == PRESENCE_PENALTY
     assert response.choices[0]["message"]["content"] == "Hello"
 
 
@@ -109,7 +122,9 @@ async def test_openrouter_adapter_missing_credentials(monkeypatch, provider_mode
     adapter = OpenRouterProvider(provider_model)
     monkeypatch.setattr("app.providers.openrouter.credentials.get_api_key", lambda _: None)
 
-    request = ChatCompletionRequest(model="deepseek/deepseek-chat-v3.1:free", messages=[{"role": "user", "content": "Hi"}])
+    request = ChatCompletionRequest(
+        model="deepseek/deepseek-chat-v3.1:free", messages=[{"role": "user", "content": "Hi"}]
+    )
 
     with pytest.raises(AuthenticationRequiredError):
         await adapter.chat_completions(request)
@@ -119,13 +134,19 @@ async def test_openrouter_adapter_missing_credentials(monkeypatch, provider_mode
 async def test_openrouter_adapter_rate_limited(monkeypatch, provider_model):
     adapter = OpenRouterProvider(provider_model)
     recorder: dict = {}
-    fake_http = FakeResponse(429)
+    fake_http = FakeResponse(HTTPStatus.TOO_MANY_REQUESTS)
 
     monkeypatch.setattr("app.providers.openrouter.credentials.get_api_key", lambda _: "router-key")
-    monkeypatch.setattr("app.providers.openrouter.credentials.record_error", lambda *args, **kwargs: None)
-    monkeypatch.setattr("app.providers.openrouter.httpx.AsyncClient", _stub_async_client(fake_http, recorder))
+    monkeypatch.setattr(
+        "app.providers.openrouter.credentials.record_error", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(
+        "app.providers.openrouter.httpx.AsyncClient", _stub_async_client(fake_http, recorder)
+    )
 
-    request = ChatCompletionRequest(model="deepseek/deepseek-chat-v3.1:free", messages=[{"role": "user", "content": "Hi"}])
+    request = ChatCompletionRequest(
+        model="deepseek/deepseek-chat-v3.1:free", messages=[{"role": "user", "content": "Hi"}]
+    )
 
     with pytest.raises(ProviderUnavailableError):
         await adapter.chat_completions(request)

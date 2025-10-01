@@ -9,9 +9,7 @@ from .database import Base
 
 class ProviderCredential(Base):
     __tablename__ = "provider_credentials"
-    __table_args__ = (
-        UniqueConstraint("provider_id", name="uq_provider_credentials_provider_id"),
-    )
+    __table_args__ = (UniqueConstraint("provider_id", name="uq_provider_credentials_provider_id"),)
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     provider_id = Column(String(100), nullable=False)

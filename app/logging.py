@@ -8,10 +8,10 @@ import logging
 import os
 import pathlib
 from datetime import datetime, timezone
+from functools import lru_cache
 from logging.handlers import RotatingFileHandler
-from typing import Any, Dict
+from typing import Any
 
-_LOG_CONFIGURED = False
 _REQUEST_ID_CTX: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "request_id", default=None
 )
@@ -54,7 +54,7 @@ class JsonFormatter(logging.Formatter):
     }
 
     def format(self, record: logging.LogRecord) -> str:
-        payload: Dict[str, Any] = {
+        payload: dict[str, Any] = {
             "ts": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
             "level": record.levelname,
             "logger": record.name,
@@ -95,17 +95,14 @@ def _log_file_path() -> pathlib.Path:
     configured = os.getenv("LOG_FILE", "logs/app.jsonl")
     path = pathlib.Path(configured)
     if not path.is_absolute():
-        path = BASE_DIR.parent / path
+        path = BASE_DIR / path
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
 
 
+@lru_cache(maxsize=1)
 def configure_logging() -> None:
     """Configure global logging for the application."""
-    global _LOG_CONFIGURED
-    if _LOG_CONFIGURED:
-        return
-
     console_level_name = os.getenv("LOG_LEVEL", "WARNING").upper()
     console_level = getattr(logging, console_level_name, logging.WARNING)
 
@@ -140,8 +137,6 @@ def configure_logging() -> None:
     # Suppress verbose third-party loggers.
     logging.getLogger("uvicorn").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
-
-    _LOG_CONFIGURED = True
 
 
 __all__ = [

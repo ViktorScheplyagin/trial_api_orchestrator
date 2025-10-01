@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Optional, Type
+from typing import cast
 
 from app.core.config import AppConfig, ProviderModel, load_config
 from app.core.exceptions import ProviderUnavailableError
@@ -23,7 +24,7 @@ logger = logging.getLogger("orchestrator.router")
 @dataclass
 class ProviderState:
     provider: ProviderModel
-    credential: Optional[ProviderCredential]
+    credential: ProviderCredential | None
 
     @property
     def has_api_key(self) -> bool:
@@ -33,15 +34,14 @@ class ProviderState:
     def is_available(self) -> bool:
         if not self.has_api_key:
             return False
-        if self.credential.last_error:
-            return False
-        return True
+        credential = self.credential
+        return not (credential and credential.last_error)
 
 
 class ProviderRegistry:
     """Registry handling provider adapters and configuration."""
 
-    _adapter_map: Dict[str, Type[ProviderAdapter]] = {
+    _adapter_map: dict[str, type[ProviderAdapter]] = {
         "cerebras": CerebrasProvider,
         "cohere": CohereProvider,
         "gemini": GeminiProvider,
@@ -50,7 +50,7 @@ class ProviderRegistry:
 
     def __init__(self, config: AppConfig | None = None) -> None:
         self._config = config or load_config()
-        self._instances: Dict[str, ProviderAdapter] = {}
+        self._instances: dict[str, ProviderAdapter] = {}
 
     def providers(self) -> Iterable[ProviderModel]:
         return sorted(self._config.providers, key=lambda p: p.priority)
@@ -63,8 +63,8 @@ class ProviderRegistry:
             self._instances[provider.id] = adapter_cls(provider)
         return self._instances[provider.id]
 
-    def get_states(self) -> List[ProviderState]:
-        stored = {item.provider_id: item for item in credentials.list_credentials()}
+    def get_states(self) -> list[ProviderState]:
+        stored = {cast(str, item.provider_id): item for item in credentials.list_credentials()}
         return [
             ProviderState(provider=provider, credential=stored.get(provider.id))
             for provider in self.providers()
@@ -122,8 +122,6 @@ async def select_provider(
         adapter = registry.get_adapter(provider_model)
         try:
             response = await adapter.chat_completions(request)
-            final_failure = None
-            return response
         except ProviderUnavailableError as exc:
             logger.warning(
                 "Provider failed",
@@ -147,6 +145,8 @@ async def select_provider(
             last_failure_message = exc.message
             final_failure = exc
             continue
+        else:
+            return response
 
     if final_failure:
         logger.error(

@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import pathlib
+from collections.abc import Iterator
 from contextlib import contextmanager
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 DB_PATH = BASE_DIR.parent / "data" / "orchestrator.db"
@@ -33,7 +34,7 @@ class Base(DeclarativeBase):
 
 
 @contextmanager
-def session_scope():
+def session_scope() -> Iterator[Session]:
     """Provide a transactional scope around a series of operations."""
     session = SessionLocal()
     try:

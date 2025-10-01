@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import cast
+from typing import Annotated, cast
 
 from fastapi import APIRouter, Body, Form, HTTPException, Response
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -70,8 +70,8 @@ def list_events(limit: int = 25) -> dict:
 @router.post("/providers/{provider_id}/credentials")
 async def set_provider_key(
     provider_id: str,
-    api_key: str | None = Form(default=None),
-    api_key_body: dict | None = Body(default=None),
+    api_key: Annotated[str | None, Form()] = None,
+    api_key_body: Annotated[dict | None, Body()] = None,
 ) -> Response:
     api_key_value = api_key
     if api_key_value is None and api_key_body:
@@ -106,7 +106,9 @@ async def set_provider_key(
             message=exc.message,
             meta={"source": "admin_credentials"},
         )
-        raise HTTPException(status_code=503, detail=f"Provider health check failed: {exc.message}") from exc
+        raise HTTPException(
+            status_code=503, detail=f"Provider health check failed: {exc.message}"
+        ) from exc
 
     upsert_api_key(provider_id, api_key_value)
     record_event(
@@ -154,7 +156,9 @@ async def healthcheck_provider(provider_id: str) -> Response:
             message=exc.message,
             meta={"source": "admin_healthcheck"},
         )
-        raise HTTPException(status_code=503, detail=f"Provider health check failed: {exc.message}") from exc
+        raise HTTPException(
+            status_code=503, detail=f"Provider health check failed: {exc.message}"
+        ) from exc
 
     clear_error(provider_id)
     record_event(

@@ -1,5 +1,6 @@
 import pathlib
 import sys
+from http import HTTPStatus
 
 import pytest
 
@@ -21,7 +22,7 @@ class FakeResponse:
 
     @property
     def is_error(self) -> bool:
-        return self.status_code >= 400
+        return self.status_code >= HTTPStatus.BAD_REQUEST
 
 
 def _stub_async_client(response, recorder):
@@ -87,14 +88,22 @@ async def test_cohere_adapter_normalizes_response(monkeypatch, provider_model):
         "usage": {"tokens": {"input": 5, "output": 7}},
         "finish_reason": "COMPLETE",
     }
-    fake_http = FakeResponse(200, response_payload)
+    fake_http = FakeResponse(HTTPStatus.OK, response_payload)
 
     monkeypatch.setattr("app.providers.cohere.credentials.get_api_key", lambda _: "test-key")
-    monkeypatch.setattr("app.providers.cohere.credentials.record_error", lambda *args, **kwargs: None)
-    monkeypatch.setattr("app.providers.cohere.credentials.clear_error", lambda *args, **kwargs: None)
-    monkeypatch.setattr("app.providers.cohere.httpx.AsyncClient", _stub_async_client(fake_http, recorder))
+    monkeypatch.setattr(
+        "app.providers.cohere.credentials.record_error", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(
+        "app.providers.cohere.credentials.clear_error", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(
+        "app.providers.cohere.httpx.AsyncClient", _stub_async_client(fake_http, recorder)
+    )
 
-    request = ChatCompletionRequest(model="command-r-plus", messages=[{"role": "user", "content": "Hi"}])
+    request = ChatCompletionRequest(
+        model="command-r-plus", messages=[{"role": "user", "content": "Hi"}]
+    )
     response = await adapter.chat_completions(request)
 
     assert recorder["url"] == "https://api.cohere.com/v2/chat"
@@ -113,7 +122,9 @@ async def test_cohere_adapter_handles_missing_credentials(monkeypatch, provider_
     adapter = CohereProvider(provider_model)
     monkeypatch.setattr("app.providers.cohere.credentials.get_api_key", lambda _: None)
 
-    request = ChatCompletionRequest(model="command-r-plus", messages=[{"role": "user", "content": "Hi"}])
+    request = ChatCompletionRequest(
+        model="command-r-plus", messages=[{"role": "user", "content": "Hi"}]
+    )
 
     with pytest.raises(AuthenticationRequiredError):
         await adapter.chat_completions(request)
@@ -124,13 +135,19 @@ async def test_cohere_adapter_raises_on_rate_limit(monkeypatch, provider_model):
     adapter = CohereProvider(provider_model)
 
     recorder: dict = {}
-    fake_http = FakeResponse(429)
+    fake_http = FakeResponse(HTTPStatus.TOO_MANY_REQUESTS)
 
     monkeypatch.setattr("app.providers.cohere.credentials.get_api_key", lambda _: "test-key")
-    monkeypatch.setattr("app.providers.cohere.credentials.record_error", lambda *args, **kwargs: None)
-    monkeypatch.setattr("app.providers.cohere.httpx.AsyncClient", _stub_async_client(fake_http, recorder))
+    monkeypatch.setattr(
+        "app.providers.cohere.credentials.record_error", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(
+        "app.providers.cohere.httpx.AsyncClient", _stub_async_client(fake_http, recorder)
+    )
 
-    request = ChatCompletionRequest(model="command-r-plus", messages=[{"role": "user", "content": "Hi"}])
+    request = ChatCompletionRequest(
+        model="command-r-plus", messages=[{"role": "user", "content": "Hi"}]
+    )
 
     with pytest.raises(ProviderUnavailableError):
         await adapter.chat_completions(request)

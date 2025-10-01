@@ -1,5 +1,4 @@
 import pytest
-
 from app.core.config import AppConfig, ProviderModel
 from app.core.exceptions import ProviderUnavailableError
 from app.providers.base import ChatCompletionRequest, ChatCompletionResponse, ProviderAdapter
@@ -85,7 +84,9 @@ async def test_select_provider_fails_over_to_next_adapter(monkeypatch):
     registry = selector.ProviderRegistry(config=config)
     monkeypatch.setattr(selector, "registry", registry)
 
-    request = ChatCompletionRequest(model="ok-model", messages=[{"role": "user", "content": "ping"}])
+    request = ChatCompletionRequest(
+        model="ok-model", messages=[{"role": "user", "content": "ping"}]
+    )
     response = await selector.select_provider(request)
 
     assert response.choices[0]["message"]["content"] == "ok"

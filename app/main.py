@@ -4,18 +4,18 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
+from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.openapi.docs import get_swagger_ui_html
 
 from app.api import admin, openai
 from app.core.config import load_config
-from app.storage.credentials import init_db
-from app.router.selector import registry
 from app.logging import configure_logging, get_request_id
 from app.middleware.request_context import RequestContextMiddleware
+from app.router.selector import registry
+from app.storage.credentials import init_db
 from app.telemetry.events import list_recent_events, record_event
 
 configure_logging()
@@ -44,7 +44,7 @@ def on_startup() -> None:
 
 
 @app.get("/", response_class=HTMLResponse)
-def dashboard(request: Request):
+def dashboard(request: Request) -> Response:
     states = registry.get_states()
     events = list_recent_events(limit=25)
     return templates.TemplateResponse(

@@ -6,9 +6,10 @@ import json
 import logging
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, cast
 
 from sqlalchemy import delete, select
+from sqlalchemy.orm import Session
 
 from app.logging import get_request_id
 from app.storage.database import session_scope
@@ -19,22 +20,20 @@ logger = logging.getLogger("orchestrator.events")
 _EVENTS_ENABLED = os.getenv("EVENTS_ENABLED", "true").lower() in {"1", "true", "yes"}
 
 
-_RETENTION_DAYS = 2  # keep today + yesterday
+_RETENTION_DAYS = 2
+_RETENTION_BUFFER = timedelta(minutes=5)
 
 
 def _current_retention_cutoff() -> datetime:
     """Return the UTC timestamp cutoff for events to retain."""
     now_utc = datetime.now(timezone.utc)
-    start_of_today = datetime(now_utc.year, now_utc.month, now_utc.day, tzinfo=timezone.utc)
-    return start_of_today - timedelta(days=_RETENTION_DAYS - 1)
+    return now_utc - timedelta(days=_RETENTION_DAYS) - _RETENTION_BUFFER
 
 
-def _prune_old_events(session) -> None:
+def _prune_old_events(session: Session) -> None:
     """Remove events older than the retention window."""
     cutoff = _current_retention_cutoff()
-    session.execute(
-        delete(OrchestratorEvent).where(OrchestratorEvent.ts < cutoff)
-    )
+    session.execute(delete(OrchestratorEvent).where(OrchestratorEvent.ts < cutoff))
 
 
 def record_event(
@@ -43,7 +42,7 @@ def record_event(
     *,
     message: str | None = None,
     request_id: str | None = None,
-    meta: Dict[str, Any] | None = None,
+    meta: dict[str, Any] | None = None,
     **fields: Any,
 ) -> None:
     """Persist a high-value event for later inspection."""
@@ -73,7 +72,7 @@ def record_event(
         )
 
 
-def list_recent_events(limit: int = 50) -> List[Dict[str, Any]]:
+def list_recent_events(limit: int = 50) -> list[dict[str, Any]]:
     """Return recent events ordered newest first."""
     if not _EVENTS_ENABLED:
         return []
@@ -91,14 +90,15 @@ def list_recent_events(limit: int = 50) -> List[Dict[str, Any]]:
         )
         rows = session.scalars(stmt).all()
 
-    events: List[Dict[str, Any]] = []
+    events: list[dict[str, Any]] = []
     for row in rows:
-        meta_value: Optional[Dict[str, Any] | str | None]
-        if row.meta:
+        meta_raw = cast(str | None, row.meta)
+        meta_value: dict[str, Any] | str | None
+        if meta_raw:
             try:
-                meta_value = json.loads(row.meta)
+                meta_value = json.loads(meta_raw)
             except json.JSONDecodeError:
-                meta_value = row.meta
+                meta_value = meta_raw
         else:
             meta_value = None
 

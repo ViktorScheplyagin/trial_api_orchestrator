@@ -3,25 +3,25 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Optional
+from typing import cast
 
 from sqlalchemy import select, update
 
-from .database import session_scope
+from .database import Base, engine, session_scope
 from .models import ProviderCredential
 
 
 def init_db() -> None:
     """Create tables if they do not already exist."""
-    from .database import Base, engine
-
     Base.metadata.create_all(bind=engine)
 
 
 def upsert_api_key(provider_id: str, api_key: str) -> None:
     """Insert or update the API key for a provider."""
     with session_scope() as session:
-        existing = session.scalar(select(ProviderCredential).where(ProviderCredential.provider_id == provider_id))
+        existing = session.scalar(
+            select(ProviderCredential).where(ProviderCredential.provider_id == provider_id)
+        )
         if existing:
             session.execute(
                 update(ProviderCredential)
@@ -33,17 +33,21 @@ def upsert_api_key(provider_id: str, api_key: str) -> None:
             session.add(credential)
 
 
-def get_api_key(provider_id: str) -> Optional[str]:
+def get_api_key(provider_id: str) -> str | None:
     """Return the stored API key for the given provider, if any."""
     with session_scope() as session:
-        credential = session.scalar(select(ProviderCredential.api_key).where(ProviderCredential.provider_id == provider_id))
-        return credential
+        result = session.scalar(
+            select(ProviderCredential.api_key).where(ProviderCredential.provider_id == provider_id)
+        )
+        return cast(str | None, result)
 
 
 def record_error(provider_id: str, error_code: str) -> None:
     """Record the latest error for a provider."""
     with session_scope() as session:
-        existing = session.scalar(select(ProviderCredential).where(ProviderCredential.provider_id == provider_id))
+        existing = session.scalar(
+            select(ProviderCredential).where(ProviderCredential.provider_id == provider_id)
+        )
         if existing:
             session.execute(
                 update(ProviderCredential)
@@ -63,7 +67,9 @@ def record_error(provider_id: str, error_code: str) -> None:
 def clear_error(provider_id: str) -> None:
     """Clear the last error for a provider."""
     with session_scope() as session:
-        existing = session.scalar(select(ProviderCredential).where(ProviderCredential.provider_id == provider_id))
+        existing = session.scalar(
+            select(ProviderCredential).where(ProviderCredential.provider_id == provider_id)
+        )
         if existing and existing.last_error:
             session.execute(
                 update(ProviderCredential)
@@ -75,14 +81,16 @@ def clear_error(provider_id: str) -> None:
 def list_credentials() -> list[ProviderCredential]:
     """Return all provider credentials with their error state."""
     with session_scope() as session:
-        result = session.scalars(select(ProviderCredential)).all()
-        return result
+        rows = session.scalars(select(ProviderCredential)).all()
+        return cast(list[ProviderCredential], rows)
 
 
 def delete_api_key(provider_id: str) -> bool:
     """Delete a stored API key if present."""
     with session_scope() as session:
-        credential = session.scalar(select(ProviderCredential).where(ProviderCredential.provider_id == provider_id))
+        credential = session.scalar(
+            select(ProviderCredential).where(ProviderCredential.provider_id == provider_id)
+        )
         if not credential:
             return False
         session.delete(credential)
