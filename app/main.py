@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
 from fastapi.openapi.docs import get_swagger_ui_html
@@ -22,12 +23,22 @@ configure_logging()
 
 logger = logging.getLogger("orchestrator.app")
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup logic
+    init_db()
+    load_config()
+    yield
+    # Shutdown cleanup (add if needed)
+
+
 app = FastAPI(
     title="Trial API Orchestrator",
     version="0.1.0",
     docs_url=None,
     redoc_url=None,
     openapi_url="/api/openapi.json",
+    lifespan=lifespan,
 )
 app.include_router(openai.router)
 app.include_router(admin.router)
@@ -35,12 +46,6 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.add_middleware(RequestContextMiddleware)
 
 templates = Jinja2Templates(directory="app/templates")
-
-
-@app.on_event("startup")
-def on_startup() -> None:
-    init_db()
-    load_config()
 
 
 @app.get("/", response_class=HTMLResponse)
