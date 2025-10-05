@@ -74,6 +74,15 @@ class ProviderRegistry:
 registry = ProviderRegistry()
 
 
+def _resolve_request_model(request: ChatCompletionRequest, provider: ProviderModel) -> str:
+    if request.model:
+        return request.model
+    default_model = provider.models.get("default")
+    if not isinstance(default_model, str) or not default_model:
+        raise ProviderUnavailableError(provider.id, message="No default model configured")
+    return default_model
+
+
 async def select_provider(
     request: ChatCompletionRequest,
     provider_id: str | None = None,
@@ -92,7 +101,9 @@ async def select_provider(
 
     last_failed_provider_id: str | None = None
     last_failure_message: str | None = None
+    last_failed_model: str | None = None
     final_failure: ProviderUnavailableError | None = None
+    final_failure_model: str | None = None
 
     for attempt_index, provider_model in enumerate(providers_to_try, start=1):
         if last_failed_provider_id:
@@ -102,7 +113,7 @@ async def select_provider(
                     "event": "provider_switched",
                     "provider_from": last_failed_provider_id,
                     "provider_to": provider_model.id,
-                    "model": request.model,
+                    "model": last_failed_model,
                     "reason": last_failure_message,
                     "attempt": attempt_index,
                 },
@@ -112,23 +123,31 @@ async def select_provider(
                 "INFO",
                 provider_from=last_failed_provider_id,
                 provider_to=provider_model.id,
-                model=request.model,
+                model=last_failed_model,
                 message=last_failure_message,
                 meta={"attempt": attempt_index},
             )
             last_failed_provider_id = None
             last_failure_message = None
+            last_failed_model = None
+
+        resolved_model = _resolve_request_model(request, provider_model)
+        provider_request = (
+            request
+            if request.model == resolved_model
+            else request.model_copy(update={"model": resolved_model})
+        )
 
         adapter = registry.get_adapter(provider_model)
         try:
-            response = await adapter.chat_completions(request)
+            response = await adapter.chat_completions(provider_request)
         except ProviderUnavailableError as exc:
             logger.warning(
                 "Provider failed",
                 extra={
                     "event": "provider_fail",
                     "provider_from": provider_model.id,
-                    "model": request.model,
+                    "model": resolved_model,
                     "error_message": exc.message,
                     "attempt": attempt_index,
                 },
@@ -137,13 +156,15 @@ async def select_provider(
                 "provider_fail",
                 "WARNING",
                 provider_from=provider_model.id,
-                model=request.model,
+                model=resolved_model,
                 message=exc.message,
                 meta={"attempt": attempt_index},
             )
             last_failed_provider_id = provider_model.id
             last_failure_message = exc.message
+            last_failed_model = resolved_model
             final_failure = exc
+            final_failure_model = resolved_model
             continue
         else:
             return response
@@ -154,7 +175,7 @@ async def select_provider(
             extra={
                 "event": "request_error",
                 "provider_from": final_failure.provider_id,
-                "model": request.model,
+                "model": final_failure_model,
                 "error_message": final_failure.message,
             },
         )
@@ -162,7 +183,7 @@ async def select_provider(
             "request_error",
             "ERROR",
             provider_from=final_failure.provider_id,
-            model=request.model,
+            model=final_failure_model,
             message=final_failure.message,
         )
         raise final_failure

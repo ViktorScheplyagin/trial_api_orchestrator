@@ -24,9 +24,11 @@ class _SuccessfulAdapter(ProviderAdapter):
     def __init__(self, config: ProviderModel) -> None:  # pragma: no cover - simple init
         self.config = config
         self.calls = 0
+        self.last_request_model: str | None = None
 
     async def chat_completions(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
         self.calls += 1
+        self.last_request_model = request.model
         return ChatCompletionResponse.model_validate(
             {
                 "id": "chatcmpl-test",
@@ -94,3 +96,36 @@ async def test_select_provider_fails_over_to_next_adapter(monkeypatch):
     kinds = [kind for kind, _, _ in events]
     assert "provider_fail" in kinds
     assert "provider_switched" in kinds
+
+
+@pytest.mark.asyncio
+async def test_select_provider_infers_default_model(monkeypatch):
+    monkeypatch.setattr(
+        selector.ProviderRegistry,
+        "_adapter_map",
+        {"ok": _SuccessfulAdapter},
+    )
+
+    config = AppConfig(
+        providers=[
+            ProviderModel(
+                id="ok",
+                name="OK Provider",
+                priority=10,
+                base_url="https://ok.example",
+                chat_completions_path="/chat",
+                models={"default": "ok-default"},
+            )
+        ]
+    )
+
+    registry = selector.ProviderRegistry(config=config)
+    monkeypatch.setattr(selector, "registry", registry)
+
+    request = ChatCompletionRequest(messages=[{"role": "user", "content": "ping"}])
+    response = await selector.select_provider(request)
+
+    assert response.model == "ok-default"
+    adapter = registry.get_adapter(config.providers[0])
+    assert isinstance(adapter, _SuccessfulAdapter)
+    assert adapter.last_request_model == "ok-default"

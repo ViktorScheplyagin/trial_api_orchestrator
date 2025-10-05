@@ -10,7 +10,7 @@ from app.core.config import ProviderModel
 
 
 class ChatCompletionRequest(BaseModel):
-    model: str
+    model: str | None = None
     messages: list[dict[str, Any]]
     temperature: float | None = None
     max_tokens: int | None = None
