@@ -201,6 +201,18 @@ Notes:
 - `models.default` is used by UI examples and smoke tests.
 
 
+### Cohere Adapter Notes
+
+- Vision-capable models (for example `command-a-vision-07-2025`) accept OpenAI-style multimodal
+  requests. The adapter rewrites `messages[*].content` entries so that `image_url` or
+  `input_image` parts (including those using `image: {url: ...}` or `image: {b64_json: ...}`)
+  become Cohere `{"type": "image", "source": ...}` objects before calling
+  `/v2/chat`.
+- Cohere responses that include non-text content are surfaced as structured OpenAI-style content
+  lists instead of being flattened to a plain string. Pure text replies remain simple strings so
+  existing clients continue to work without changes.
+
+
 ## Error Mapping & Availability Heuristic
 
 Adapters must map provider responses to shared exceptions and record availability state:

@@ -5,8 +5,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated, cast
 
-from fastapi import APIRouter, Body, Form, HTTPException, Response
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi import APIRouter, Body, Form, HTTPException, Request, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
 
 from app.core.config import load_config
 from app.core.exceptions import AuthenticationRequiredError, ProviderUnavailableError
@@ -20,9 +21,11 @@ from app.storage.credentials import (
     upsert_api_key,
 )
 from app.storage.models import ProviderCredential
+from app.storage.provider_logs import list_provider_logs
 from app.telemetry.events import list_recent_events, record_event
 
 router = APIRouter(prefix="/admin")
+templates = Jinja2Templates(directory="app/templates")
 
 
 @router.get("/providers")
@@ -185,3 +188,21 @@ def delete_provider_key_post(provider_id: str) -> RedirectResponse:
     if not removed:
         raise HTTPException(status_code=404, detail="Provider credential not found")
     return RedirectResponse(url="/", status_code=303)
+
+
+@router.get("/{provider_id}/logs", response_class=HTMLResponse)
+def provider_logs_page(provider_id: str, request: Request) -> Response:
+    config = load_config()
+    provider_model = next((p for p in config.providers if p.id == provider_id), None)
+    if provider_model is None:
+        raise HTTPException(status_code=404, detail="Provider not configured")
+
+    logs = list_provider_logs(provider_id)
+    return templates.TemplateResponse(
+        "provider_logs.html",
+        {
+            "request": request,
+            "provider": provider_model,
+            "logs": logs,
+        },
+    )

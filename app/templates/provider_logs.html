@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ provider.name }} Logs</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <main class="container">
+        <div class="toolbar">
+            <div>
+                <h1>{{ provider.name }} Logs</h1>
+                <div class="detail">Provider ID: {{ provider.id }}</div>
+            </div>
+            <div class="toolbar-actions">
+                <a href="/" class="secondary">Back to dashboard</a>
+                <button type="button" id="theme-toggle" class="secondary" aria-pressed="false">Switch to dark mode</button>
+            </div>
+        </div>
+        <p class="detail">Showing request and response bodies recorded today.</p>
+
+        {% if logs %}
+        <section class="logs">
+            {% for log in logs %}
+            <details class="log-entry">
+                <summary>
+                    <span class="timestamp" data-raw="{{ log.created_at|default('', true) }}">{{ log.created_at or "-" }}</span>
+                    {% if log.request_id %}
+                    <span class="meta">Request ID: {{ log.request_id }}</span>
+                    {% endif %}
+                </summary>
+                <div class="log-body">
+                    <h3>Request Body</h3>
+                    <pre style="white-space: pre-wrap; word-break: break-word;">{{ log.request_body_pretty | e }}</pre>
+                    <h3>Response Body</h3>
+                    <pre style="white-space: pre-wrap; word-break: break-word;">{{ log.response_body_pretty | e }}</pre>
+                </div>
+            </details>
+            {% endfor %}
+        </section>
+        {% else %}
+        <p class="empty">No logs recorded today.</p>
+        {% endif %}
+    </main>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var themeToggleButton = document.getElementById('theme-toggle');
+            var THEME_STORAGE_KEY = 'trial-api-orchestrator-theme';
+            var currentTheme = null;
+
+            function readStoredTheme() {
+                try {
+                    var value = window.localStorage.getItem(THEME_STORAGE_KEY);
+                    if (value === 'dark' || value === 'light') {
+                        return value;
+                    }
+                } catch (err) {
+                    // localStorage unavailable
+                }
+                return null;
+            }
+
+            function persistTheme(theme) {
+                try {
+                    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+                } catch (err) {
+                    // ignore
+                }
+            }
+
+            function systemPreferredTheme() {
+                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    return 'dark';
+                }
+                return 'light';
+            }
+
+            function applyTheme(theme) {
+                document.documentElement.dataset.theme = theme;
+                var opposite = theme === 'dark' ? 'light' : 'dark';
+                themeToggleButton.textContent = 'Switch to ' + opposite + ' mode';
+                themeToggleButton.setAttribute('aria-pressed', theme === 'dark');
+            }
+
+            function initTheme() {
+                currentTheme = readStoredTheme() || systemPreferredTheme();
+                applyTheme(currentTheme);
+            }
+
+            function toggleTheme() {
+                currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                applyTheme(currentTheme);
+                persistTheme(currentTheme);
+            }
+
+            if (themeToggleButton) {
+                initTheme();
+                themeToggleButton.addEventListener('click', toggleTheme);
+            }
+
+            document.querySelectorAll('.timestamp').forEach(function (el) {
+                var raw = el.getAttribute('data-raw');
+                if (!raw) {
+                    return;
+                }
+                var parsed = new Date(raw);
+                if (!Number.isNaN(parsed.getTime())) {
+                    el.textContent = parsed.toLocaleString();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

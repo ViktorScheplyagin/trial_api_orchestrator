@@ -19,9 +19,10 @@ FREQUENCY_PENALTY = 0.2
 
 
 class FakeResponse:
-    def __init__(self, status_code: int, payload: dict | None = None) -> None:
+    def __init__(self, status_code: int, payload: dict | None = None, text: str | None = None) -> None:
         self.status_code = status_code
         self._payload = payload or {}
+        self._text = text
 
     def json(self) -> dict:
         return self._payload
@@ -29,6 +30,19 @@ class FakeResponse:
     @property
     def is_error(self) -> bool:
         return self.status_code >= HTTPStatus.BAD_REQUEST
+
+    @property
+    def text(self) -> str:
+        if self._text is not None:
+            return self._text
+        if not self._payload:
+            return ""
+        try:
+            import json as _json
+
+            return _json.dumps(self._payload)
+        except Exception:
+            return ""
 
 
 def _stub_async_client(response, recorder):
@@ -69,6 +83,7 @@ def provider_model() -> ProviderModel:
 async def test_openrouter_adapter_success(monkeypatch, provider_model):
     adapter = OpenRouterProvider(provider_model)
     recorder: dict = {}
+    logs: list = []
 
     response_payload = {
         "id": "chatcmpl-123",
@@ -96,6 +111,17 @@ async def test_openrouter_adapter_success(monkeypatch, provider_model):
     monkeypatch.setattr(
         "app.providers.openrouter.httpx.AsyncClient", _stub_async_client(fake_http, recorder)
     )
+    monkeypatch.setattr(
+        "app.providers.openrouter.record_provider_log",
+        lambda provider_id, *, request_body, response_body, request_id=None: logs.append(
+            {
+                "provider_id": provider_id,
+                "request_body": request_body,
+                "response_body": response_body,
+                "request_id": request_id,
+            }
+        ),
+    )
 
     request = ChatCompletionRequest(
         model="deepseek/deepseek-chat-v3.1:free",
@@ -115,6 +141,8 @@ async def test_openrouter_adapter_success(monkeypatch, provider_model):
     assert recorder["json"]["temperature"] == TEMPERATURE
     assert recorder["json"]["presence_penalty"] == PRESENCE_PENALTY
     assert response.choices[0]["message"]["content"] == "Hello"
+    assert len(logs) == 1
+    assert "error" not in logs[0]["response_body"]
 
 
 @pytest.mark.asyncio
@@ -134,6 +162,7 @@ async def test_openrouter_adapter_missing_credentials(monkeypatch, provider_mode
 async def test_openrouter_adapter_rate_limited(monkeypatch, provider_model):
     adapter = OpenRouterProvider(provider_model)
     recorder: dict = {}
+    logs: list = []
     fake_http = FakeResponse(HTTPStatus.TOO_MANY_REQUESTS)
 
     monkeypatch.setattr("app.providers.openrouter.credentials.get_api_key", lambda _: "router-key")
@@ -143,6 +172,17 @@ async def test_openrouter_adapter_rate_limited(monkeypatch, provider_model):
     monkeypatch.setattr(
         "app.providers.openrouter.httpx.AsyncClient", _stub_async_client(fake_http, recorder)
     )
+    monkeypatch.setattr(
+        "app.providers.openrouter.record_provider_log",
+        lambda provider_id, *, request_body, response_body, request_id=None: logs.append(
+            {
+                "provider_id": provider_id,
+                "request_body": request_body,
+                "response_body": response_body,
+                "request_id": request_id,
+            }
+        ),
+    )
 
     request = ChatCompletionRequest(
         model="deepseek/deepseek-chat-v3.1:free", messages=[{"role": "user", "content": "Hi"}]
@@ -150,3 +190,8 @@ async def test_openrouter_adapter_rate_limited(monkeypatch, provider_model):
 
     with pytest.raises(ProviderUnavailableError):
         await adapter.chat_completions(request)
+
+    assert len(logs) == 1
+    error_payload = logs[0]["response_body"]
+    assert error_payload["error"]["type"] == "rate_limit"
+    assert error_payload["error"]["status_code"] == HTTPStatus.TOO_MANY_REQUESTS

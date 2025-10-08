@@ -20,9 +20,10 @@ HEALTHCHECK_MAX_TOKENS = 16
 
 
 class FakeResponse:
-    def __init__(self, status_code: int, payload: dict | None = None) -> None:
+    def __init__(self, status_code: int, payload: dict | None = None, text: str | None = None) -> None:
         self.status_code = status_code
         self._payload = payload or {}
+        self._text = text
 
     def json(self) -> dict:
         return self._payload
@@ -30,6 +31,19 @@ class FakeResponse:
     @property
     def is_error(self) -> bool:
         return self.status_code >= HTTPStatus.BAD_REQUEST
+
+    @property
+    def text(self) -> str:
+        if self._text is not None:
+            return self._text
+        if not self._payload:
+            return ""
+        try:
+            import json as _json
+
+            return _json.dumps(self._payload)
+        except Exception:
+            return ""
 
 
 def _stub_async_client(response, recorder):
@@ -70,6 +84,7 @@ def provider_model() -> ProviderModel:
 async def test_gemini_adapter_success(monkeypatch, provider_model):
     adapter = GeminiProvider(provider_model)
     recorder: dict = {}
+    logs: list = []
 
     response_payload = {
         "candidates": [
@@ -97,6 +112,17 @@ async def test_gemini_adapter_success(monkeypatch, provider_model):
     )
     monkeypatch.setattr(
         "app.providers.gemini.httpx.AsyncClient", _stub_async_client(fake_http, recorder)
+    )
+    monkeypatch.setattr(
+        "app.providers.gemini.record_provider_log",
+        lambda provider_id, *, request_body, response_body, request_id=None: logs.append(
+            {
+                "provider_id": provider_id,
+                "request_body": request_body,
+                "response_body": response_body,
+                "request_id": request_id,
+            }
+        ),
     )
 
     request = ChatCompletionRequest(
@@ -136,6 +162,8 @@ async def test_gemini_adapter_success(monkeypatch, provider_model):
     assert choice["message"]["content"] == "Hello from Gemini"
     assert choice["finish_reason"] == "stop"
     assert response.usage == {"prompt_tokens": 10, "completion_tokens": 15, "total_tokens": 25}
+    assert len(logs) == 1
+    assert "error" not in logs[0]["response_body"]
 
 
 @pytest.mark.asyncio
@@ -155,6 +183,7 @@ async def test_gemini_adapter_missing_credentials(monkeypatch, provider_model):
 async def test_gemini_adapter_includes_provider_error_detail(monkeypatch, provider_model):
     adapter = GeminiProvider(provider_model)
     recorder: dict = {}
+    logs: list = []
     payload = {"error": {"status": "PERMISSION_DENIED", "message": "API key invalid."}}
     fake_http = FakeResponse(HTTPStatus.FORBIDDEN, payload)
 
@@ -168,6 +197,17 @@ async def test_gemini_adapter_includes_provider_error_detail(monkeypatch, provid
     monkeypatch.setattr(
         "app.providers.gemini.httpx.AsyncClient", _stub_async_client(fake_http, recorder)
     )
+    monkeypatch.setattr(
+        "app.providers.gemini.record_provider_log",
+        lambda provider_id, *, request_body, response_body, request_id=None: logs.append(
+            {
+                "provider_id": provider_id,
+                "request_body": request_body,
+                "response_body": response_body,
+                "request_id": request_id,
+            }
+        ),
+    )
 
     request = ChatCompletionRequest(
         model="models/gemini-2.5-flash", messages=[{"role": "user", "content": "Ping"}]
@@ -179,12 +219,17 @@ async def test_gemini_adapter_includes_provider_error_detail(monkeypatch, provid
     message = excinfo.value.message
     assert "PERMISSION_DENIED" in message
     assert "API key invalid." in message
+    assert len(logs) == 1
+    error_payload = logs[0]["response_body"]
+    assert error_payload["error"]["type"] == "rate_limit"
+    assert error_payload["error"]["status_code"] == HTTPStatus.FORBIDDEN
 
 
 @pytest.mark.asyncio
 async def test_gemini_adapter_rate_limited(monkeypatch, provider_model):
     adapter = GeminiProvider(provider_model)
     recorder: dict = {}
+    logs: list = []
     fake_http = FakeResponse(HTTPStatus.TOO_MANY_REQUESTS)
 
     monkeypatch.setattr("app.providers.gemini.credentials.get_api_key", lambda _: "gemini-key")
@@ -194,6 +239,17 @@ async def test_gemini_adapter_rate_limited(monkeypatch, provider_model):
     monkeypatch.setattr(
         "app.providers.gemini.httpx.AsyncClient", _stub_async_client(fake_http, recorder)
     )
+    monkeypatch.setattr(
+        "app.providers.gemini.record_provider_log",
+        lambda provider_id, *, request_body, response_body, request_id=None: logs.append(
+            {
+                "provider_id": provider_id,
+                "request_body": request_body,
+                "response_body": response_body,
+                "request_id": request_id,
+            }
+        ),
+    )
 
     request = ChatCompletionRequest(
         model="models/gemini-2.5-flash", messages=[{"role": "user", "content": "Ping"}]
@@ -201,6 +257,10 @@ async def test_gemini_adapter_rate_limited(monkeypatch, provider_model):
 
     with pytest.raises(ProviderUnavailableError):
         await adapter.chat_completions(request)
+    assert len(logs) == 1
+    error_payload = logs[0]["response_body"]
+    assert error_payload["error"]["type"] == "rate_limit"
+    assert error_payload["error"]["status_code"] == HTTPStatus.TOO_MANY_REQUESTS
 
 
 @pytest.mark.asyncio

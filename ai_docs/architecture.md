@@ -113,7 +113,7 @@ Admin credential management:
 
 - config/providers.yaml
   - Declares providers with: `id`, `name`, `priority`, `base_url`, and `chat_completions_path`.
-  - Example (current default): a single `cerebras` provider with high priority.
+  - Example (current default): a single `cerebras` provider configured with the lowest priority so vision-capable adapters can be tried first.
 
 Environment and persistence:
 - SQLite database file at `data/orchestrator.db` (created automatically).

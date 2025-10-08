@@ -38,3 +38,18 @@ class OrchestratorEvent(Base):
         Index("ix_events_ts", "ts"),
         Index("ix_events_kind_ts", "kind", "ts"),
     )
+
+
+class ProviderLog(Base):
+    __tablename__ = "provider_logs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    provider_id = Column(String(100), nullable=False)
+    request_id = Column(String(64))
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    request_body = Column(Text)
+    response_body = Column(Text)
+
+    __table_args__ = (
+        Index("ix_provider_logs_provider_id_created_at", "provider_id", "created_at"),
+    )

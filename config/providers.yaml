@@ -2,7 +2,7 @@
 providers:
     - id: cerebras
       name: Cerebras Inference API
-      priority: 10
+      priority: 40
       base_url: "https://api.cerebras.ai"
       chat_completions_path: "/v1/chat/completions"
       availability:
@@ -23,7 +23,8 @@ providers:
           type: sqlite
           key_ref: cohere_api_key
       models:
-          default: "command-r-plus-08-2024"
+          default: "command-a-vision-07-2025"
+          # Vision-capable default; adapter rewrites OpenAI image parts for Cohere chat
     - id: gemini
       name: Gemini API
       priority: 25

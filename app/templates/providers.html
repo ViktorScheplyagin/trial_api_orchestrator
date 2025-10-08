@@ -43,6 +43,7 @@
                         {% endif %}
                     </td>
                     <td>
+                        <a href="/admin/{{ state.provider.id }}/logs" class="secondary">Logs</a>
                         {% if not state.has_api_key %}
                         <form method="post" action="/admin/providers/{{ state.provider.id }}/credentials" class="inline-form" data-save-form>
                             <input type="password" name="api_key" placeholder="API key" value="" required>
